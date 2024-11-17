@@ -8,9 +8,11 @@ import {
   Post,
   Req,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { GoogleAuthGuard } from './google/google-guards';
+import { AuthGuard } from './auth.guards';
 
 @Controller('auth')
 export class AuthController {
@@ -45,5 +47,11 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   googleAuthRedirect(@Req() req) {
     return this.authService.validateUser(req);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('userDetail')
+  getUserInfo(@Request() request) {
+    return request.userDetail;
   }
 }
