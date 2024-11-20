@@ -2,7 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { lastValueFrom } from 'rxjs';
-import { UserResponseDto } from 'src/models/dtos/userResponseDto';
+import { UserResponseDto } from 'src/users/dtos/userResponseDto';
 import { UsersService } from 'src/users/users.service';
 
 type AuthInput = { userName: string; password: string };

@@ -29,8 +29,10 @@
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/swagger": "^8.0.3",
+    "@nestjs/typeorm": "^10.0.2",
     "@types/express-session": "^1.18.0",
     "bcryptjs": "^2.4.3",
+    "class-validator": "^0.14.1",
     "dotenv": "^16.4.5",
     "express-session": "^1.18.1",
     "node-fetch": "^3.3.2",
@@ -38,9 +40,11 @@
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
+    "pg": "^8.13.1",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "typeorm": "^0.3.20"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
