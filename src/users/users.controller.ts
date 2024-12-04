@@ -1,18 +1,29 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dtos/create-user.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post()
-  createUser(@Body() dto: CreateUserDto) {
-    return this.usersService.createUser(dto);
+  @Get()
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin') // Solo los administradores pueden ver la lista de usuarios
+  async findAll() {
+    return this.usersService.findAll();
   }
 
-  @Get()
-  findAll() {
-    return this.usersService.findAll();
+  @Post()
+  async createUser(@Body() createUserDto: CreateUserDto) {
+    return this.usersService.createUser(createUserDto);
+  }
+
+  @Get('profile')
+  @UseGuards(AuthGuard('jwt'))
+  async getProfile(@Req() req) {
+    return req.user; // Información del usuario autenticado
   }
 }

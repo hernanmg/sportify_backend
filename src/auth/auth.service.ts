@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { lastValueFrom } from 'rxjs';
 import { UserResponseDto } from 'src/users/dtos/userResponseDto';
 import { UsersService } from 'src/users/users.service';
+import * as bcrypt from 'bcrypt';
 
 type AuthInput = { userName: string; password: string };
 type AuthResult = { accessToken: string; userId: number; userName: string };
@@ -44,8 +45,10 @@ export class AuthService {
   }
   async validateUserLogin(input: AuthInput): Promise<UserResponseDto | null> {
     const user = await this.userService.findByUserName(input.userName);
-    console.log('validate input in validateUserLogin' + user);
-    if (user && user.password === input.password) {
+    console.log('validate input in validateUserLogin  ' + user.userName);
+    console.log('validate input in user.password   ' + user.password);
+    console.log('validate input in input.password    ' + input.password);
+    if (user && (await bcrypt.compare(input.password, user.password))) {
       return {
         id: user.id,
         name: user.name,
