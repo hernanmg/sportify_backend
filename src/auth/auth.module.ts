@@ -12,7 +12,9 @@ import { UsersModule } from 'src/users/users.module';
 @Module({
   imports: [
     PassportModule.register({ session: true }),
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     HttpModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
