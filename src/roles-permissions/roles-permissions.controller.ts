@@ -1,26 +1,30 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { Roles } from 'src/auth/decorators/roles.decorator';
-import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { RolePermission } from './entities/rolePermission.entity';
 import { RolesPermissionsService } from './roles-permissions.service';
 
 @Controller('roles-permissions')
 export class RolesPermissionsController {
   constructor(
-    private readonly rolesPermissionsService: RolesPermissionsService,
+    private readonly rolePermissionService: RolesPermissionsService,
   ) {}
 
-  @Get()
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('admin') // Solo administradores pueden ver todos los roles
-  async findAllRoles() {
-    return this.rolesPermissionsService.findAllRoles();
+  @Post()
+  async create(@Body() data: Partial<RolePermission>): Promise<RolePermission> {
+    return this.rolePermissionService.create(data);
   }
 
-  @Post()
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('admin') // Solo administradores pueden crear nuevos roles
-  async createRole(@Body() body: { name: string; permissions: string[] }) {
-    return this.rolesPermissionsService.createRole(body.name, body.permissions);
+  @Get()
+  async findAll(): Promise<RolePermission[]> {
+    return this.rolePermissionService.findAll();
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: number): Promise<RolePermission> {
+    return this.rolePermissionService.findOne(id);
+  }
+
+  @Delete(':id')
+  async delete(@Param('id') id: number): Promise<void> {
+    return this.rolePermissionService.delete(id);
   }
 }

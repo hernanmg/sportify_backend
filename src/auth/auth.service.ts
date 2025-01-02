@@ -44,15 +44,15 @@ export class AuthService {
     }
   }
   async validateUserLogin(input: AuthInput): Promise<UserResponseDto | null> {
-    const user = await this.userService.findByUserName(input.userName);
-    console.log('validate input in validateUserLogin  ' + user.userName);
-    console.log('validate input in user.password   ' + user.password);
+    const user = await this.userService.findByName(input.userName);
+    console.log('validate input in validateUserLogin  ' + user.username);
+    console.log('validate input in user.password   ' + user.passwordHash);
     console.log('validate input in input.password    ' + input.password);
-    if (user && (await bcrypt.compare(input.password, user.password))) {
+    if (user && (await bcrypt.compare(input.password, user.passwordHash))) {
       return {
         id: user.id,
-        name: user.name,
-        userName: user.userName,
+        name: user.username,
+        userName: user.username,
       };
     }
     return null;

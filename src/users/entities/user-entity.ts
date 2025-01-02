@@ -9,33 +9,44 @@
 //   }
 // }
 
+import { Notification } from 'src/notifications/entities/notification-entity';
+import { Player } from 'src/players/entities/player-entity';
+import { UserRole } from 'src/users-roles/entities/userRole-entity';
 import {
   Column,
   Entity,
-  ManyToMany,
-  JoinTable,
   PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
-import { Role } from '../../roles-permissions/entities/role.entity';
 
-@Entity()
+@Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  name: string;
-
-  @Column()
-  userName: string;
+  @Column({ unique: true })
+  username: string;
 
   @Column({ unique: true })
   email: string;
 
-  @Column()
-  password: string;
+  @Column({ name: 'password_hash' })
+  passwordHash: string;
 
-  @ManyToMany(() => Role, (role) => role.users, { cascade: true })
-  @JoinTable()
-  roles: Role[];
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+
+  @OneToMany(() => UserRole, (userRole) => userRole.user)
+  userRoles: UserRole[];
+
+  @OneToMany(() => Player, (player) => player.user)
+  players: Player[];
+
+  @OneToMany(() => Notification, (notification) => notification.user)
+  notifications: Notification[];
 }

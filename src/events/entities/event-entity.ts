@@ -1,17 +1,36 @@
-import { Match } from 'src/matches/entities/match-entity';
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+} from 'typeorm';
+import { TypeEvent } from './typeEvent-entity';
 
-@Entity()
+@Entity('events')
 export class Event {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'int', nullable: false })
+  matchId: number;
+
+  @Column({ type: 'int', nullable: true })
+  playerId: number;
+
+  @ManyToOne(() => TypeEvent, (typeEvent) => typeEvent.events, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'type_event_id' })
+  typeEvent: TypeEvent;
+
+  @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ type: 'timestamp' })
-  timestamp: Date;
+  @Column({ type: 'timestamp', nullable: false })
+  eventTime: Date;
 
-  @ManyToOne(() => Match, (match) => match.events, { onDelete: 'CASCADE' })
-  match: Match;
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 }
