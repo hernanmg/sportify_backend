@@ -17,10 +17,10 @@ export class Role {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ name: 'name', type: 'varchar', length: '50', unique: true })
   name: string;
 
-  @Column({ nullable: true })
+  @Column({ name: 'description', type: 'text', nullable: true })
   description: string;
 
   @CreateDateColumn({ name: 'created_at' })
@@ -39,6 +39,6 @@ export class Role {
   })
   permissions: Permission[];
 
-  @OneToMany(() => UserRole, (userRole) => userRole.role)
+  @OneToMany(() => UserRole, (userRole) => userRole.role, { cascade: true })
   userRoles: UserRole[];
 }

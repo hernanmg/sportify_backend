@@ -27,7 +27,8 @@ import { NotificationsModule } from './notifications/notifications.module';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       autoLoadEntities: true,
-      synchronize: false, // Solo para desarrollo. Desactívalo en producción.
+      synchronize: true,
+      logging: true, // Solo para desarrollo. Desactívalo en producción.
       // }),
     }),
     UsersModule,

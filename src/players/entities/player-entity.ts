@@ -1,5 +1,6 @@
 import { Team } from 'src/teams/entities/teams-entity';
 import { User } from 'src/users/entities/user-entity';
+import { Event } from 'src/events/entities/event-entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -7,6 +8,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 
 @Entity('players')
@@ -30,4 +32,7 @@ export class Player {
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
+
+  @OneToMany(() => Event, (event) => event.match) // Relación recíproca
+  events: Event[];
 }

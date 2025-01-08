@@ -1,4 +1,5 @@
 import { Team } from 'src/teams/entities/teams-entity';
+import { Event } from 'src/events/entities/event-entity';
 import {
   Entity,
   Column,
@@ -6,6 +7,7 @@ import {
   ManyToOne,
   CreateDateColumn,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 
 @Entity('matches')
@@ -34,4 +36,7 @@ export class Match {
 
   @CreateDateColumn({ name: 'updated_at', type: 'timestamp' })
   updatedAt: Date;
+
+  @OneToMany(() => Event, (event) => event.match) // Relación recíproca
+  events: Event[];
 }

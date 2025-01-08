@@ -26,13 +26,13 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ name: 'username', type: 'varchar', length: '50', unique: true })
   username: string;
 
-  @Column({ unique: true })
+  @Column({ name: 'email', type: 'varchar', length: '100', unique: true })
   email: string;
 
-  @Column({ name: 'password_hash' })
+  @Column({ name: 'password_hash', type: 'text' })
   passwordHash: string;
 
   @CreateDateColumn({ name: 'created_at' })
