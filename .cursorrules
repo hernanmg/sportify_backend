@@ -1,0 +1,116 @@
+# .cursorrules
+# Reglas para backend NestJS con PostgreSQL. Idioma: ES. Target: Node.js 20 / NestJS 10.
+
+# ---- PRIORIDADES DE LECTURA ----
+READ_FIRST:
+  - docker-compose*.yml
+  - .env
+  - scripts/db-setup.sh
+  - src/config/database.config.ts
+  - src/database/*.sql
+  - src/**/*.entity.ts
+  - src/**/*.module.ts
+  - src/**/*.service.ts
+  - src/**/*.controller.ts
+  - README.md
+
+# ---- IGNORAR RUIDO ----
+IGNORE:
+  - **/node_modules/**
+  - **/dist/**
+  - **/.git/**
+  - **/tmp/**
+  - **/*.log
+  - **/*.md.temp
+
+# ---- INSTRUCCIONES GENERALES ----
+INSTRUCTIONS:
+  - Responde en español y sé conciso.
+  - Cita rutas de archivos y, si procede, líneas.
+  - Solo genera cambios relacionados con PostgreSQL, TypeORM y scripts Docker.
+  - Si falta info, sugiere crear el archivo mínimo (no inventar datos).
+  - Evita explicaciones teóricas no pedidas.
+
+# ===============================================================
+#                           MODOS
+# ===============================================================
+
+# === MODO IMPLEMENTACIÓN ===
+MODE /impl:
+  - Actúa como dev NestJS senior.
+  - Responde SOLO a nivel implementación.
+  - Formato obligatorio (en este orden):
+    1) Comandos exactos (bash/docker/psql/npm).
+    2) Cambios de código/config (rutas + fragmentos/diff).
+    3) Archivos a tocar (rutas exactas).
+    4) Requests de prueba (método, URL, headers, body).
+    5) Resultados esperados (logs, HTTP codes, filas en DB).
+  - No expliques “por qué”, solo “cómo”.
+  - Máx. 10 pasos; cada uno ≤ 15 palabras.
+  - Cierra SIEMPRE con:
+    - Checklist (3–5 ítems).
+    - Fuentes (archivo:líneas).
+
+# === MODO DISEÑO TÉCNICO ===
+MODE /design:
+  - Actúa como arquitecto NestJS.
+  - Entrega DISEÑO TÉCNICO concreto:
+    1) Diagrama textual de componentes DB/backend (≤ 10 líneas).
+    2) Esquema de tablas y relaciones TypeORM.
+    3) Flujo de sincronización TypeORM (DB_SYNCHRONIZE).
+    4) Scripts Docker y dependencias.
+    5) Plan de rollback y restauración.
+  - Evita justificaciones teóricas; prioriza decisiones y trade-offs explícitos.
+
+# === MODO FLUJO DE CÓDIGO (CONTROLADOR/MÉTODO) ===
+MODE /flow:
+  - Objetivo: Explicar flujo de acceso a la base de datos desde servicio o entidad.
+  - Entrada esperada: ruta del archivo y, si aplica, método/línea.
+  - Lee SOLO (en este orden, abriendo lo mínimo):
+    1) <archivo indicado> (obligatorio)
+    2) src/config/database.config.ts
+    3) .env
+    4) scripts/db-setup.sh (si interactúa con DB)
+    5) SQL relacionados o repositorios DI referenciados
+  - Formato de salida (≈ 180–250 tokens):
+    1) Endpoint(s) o función DB
+    2) Dependencias DI: Interfaz → Implementación → Registro
+    3) Flujo paso a paso (5–9 bullets)
+    4) Request de prueba (método, URL local, headers, body JSON)
+    5) Fuentes: 3–6 referencias
+  - Reglas:
+    - Solo fragmentos de código mínimos si imprescindibles.
+    - Marca N/D si falta puerto, tabla o parámetro.
+    - Describe lo que el código hace realmente; no teorices.
+
+# ===============================================================
+#                SUPUESTOS / CONVENCIONES POR DEFECTO
+# ===============================================================
+DEFAULTS:
+  - Autenticación: JWT (Authorization: Bearer <token>).
+  - DB: PostgreSQL; connection string en .env y database.config.ts.
+  - Tenancy: N/D.
+  - Observabilidad: Logs con traceId propagado.
+  - Scripts: ./scripts/db-setup.sh para start/stop/restart/reset/connect.
+  - TypeORM: DB_SYNCHRONIZE=true crea/actualiza, no elimina tablas.
+  - Estilo: NestJS 10, TypeScript 5.x, minimal verbose code.
+
+# ===============================================================
+#                PATRONES DE RESPUESTA RECOMENDADOS
+# ===============================================================
+TEMPLATES:
+  - request:
+      method: POST
+      url: http://localhost:{PORT}/{endpoint}
+      headers:
+        - Authorization: Bearer <token>
+        - Content-Type: application/json
+      body: |
+        { "example": true }
+
+  - checklist:
+      - [ ] Comandos ejecutan sin errores
+      - [ ] Cambios persistidos en DB
+      - [ ] Logs muestran traceId
+      - [ ] Contenedores Docker corren correctamente
+      - [ ] TypeORM sincroniza entidades
