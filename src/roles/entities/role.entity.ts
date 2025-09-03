@@ -9,7 +9,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Permission } from '../../permissions/entities/permission.entity';
-import { UserRole } from 'src/users-roles/entities/userRole-entity';
+// import { UserRole } from 'src/users-roles/entities/userRole-entity'; // Removido para evitar dependencia circular
 
 // Entity: Role
 @Entity('roles')
@@ -39,6 +39,6 @@ export class Role {
   })
   permissions: Permission[];
 
-  @OneToMany(() => UserRole, (userRole) => userRole.role, { cascade: true })
-  userRoles: UserRole[];
+ //@OneToMany('UserRole', 'role', { cascade: true })
+  //userRoles: any[];
 }

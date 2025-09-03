@@ -8,13 +8,13 @@ import { HttpModule } from '@nestjs/axios';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from 'src/users/users.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserAuthProvider } from './entities/user-auth-provider.entity';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([UserAuthProvider]),
     PassportModule.register({ session: true }),
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
     HttpModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

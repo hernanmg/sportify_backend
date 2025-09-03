@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
   OneToMany,
@@ -30,9 +31,50 @@ export class Player {
   @JoinColumn({ name: 'team_id' })
   team: Team;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
+  // Información deportiva
+  @Column({ name: 'posicion', type: 'varchar', length: 30, nullable: true })
+  posicion?: string;
+
+  @Column({ name: 'jersey_number', type: 'int', nullable: true })
+  jerseyNumber?: number;
+
+  @Column({ name: 'height', type: 'numeric', precision: 5, scale: 2, nullable: true })
+  height?: number;
+
+  @Column({ name: 'weight', type: 'numeric', precision: 5, scale: 2, nullable: true })
+  weight?: number;
+
+  @Column({ name: 'dominant_foot', type: 'varchar', length: 10, nullable: true })
+  dominantFoot?: string;
+
+  // Fechas importantes
+  @Column({ name: 'joined_team_date', type: 'date', default: () => 'CURRENT_DATE' })
+  joinedTeamDate: Date;
+
+  @Column({ name: 'contract_end_date', type: 'date', nullable: true })
+  contractEndDate?: Date;
+
+  // Estado del jugador
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
+
+  @Column({ name: 'is_captain', type: 'boolean', default: false })
+  isCaptain: boolean;
+
+  @Column({ 
+    name: 'injury_status', 
+    type: 'varchar', 
+    length: 20, 
+    default: 'healthy' 
+  })
+  injuryStatus: string;
+
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @OneToMany(() => Event, (event) => event.match) // Relación recíproca
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+
+  @OneToMany(() => Event, (event) => event.player)
   events: Event[];
 }

@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: sportify_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: sportify_amateur
+      POSTGRES_USER: sportify_user
+      POSTGRES_PASSWORD: sportify_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5445:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/database/tables.sql:/docker-entrypoint-initdb.d/01-tables.sql
+      - ./src/database/inserts.sql:/docker-entrypoint-initdb.d/02-inserts.sql
+    networks:
+      - sportify_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sportify_user -d sportify_amateur"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # pgAdmin
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sportify_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@sportify.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - sportify_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  sportify_network:
+    driver: bridge

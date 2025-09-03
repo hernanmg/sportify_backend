@@ -14,9 +14,10 @@ INSERT INTO sports (name,  created_at) VALUES
 
 -- Insert for teams
 INSERT INTO teams (name, sport_id , created_at) VALUES
-('Zebra FC', 4, NOW()),
-('Sharks Basketball', 5, NOW()),
-('Tigers Volleyball', 6, NOW());
+('Zebra FC +35', 1, NOW()),
+('Sharks Basketball', 2, NOW()),
+('Tigers Volleyball', 3, NOW()),
+('Zebra FC +40', 1, NOW());
 
 -- Insert for players
 INSERT INTO players (user_id, team_id, created_at) VALUES
@@ -78,3 +79,68 @@ INSERT INTO notifications (user_id, message, sent_at, is_read) VALUES
 (7, 'You have a new match scheduled', NOW(), FALSE), -- Charlie Brown
 (8, 'Monthly payment due', NOW(), TRUE), -- Bob Smith
 (9, 'Practice starts at 6 PM', NOW(), FALSE); -- Alice Johnson
+
+-- Insert the specified languages
+INSERT INTO languages (name, code) VALUES
+('Español', 'es'),
+('Português (Brasil)', 'pt-BR'),
+('English', 'en'),
+('Italiano', 'it'),
+('Français', 'fr');
+
+INSERT INTO permissions (name, description) VALUES
+('GESTION_USUARIOS', 'Crear, editar, eliminar usuarios'),
+('GESTION_ROLES', 'Crear, editar, asignar roles y permisos'),
+('GESTION_PARTIDOS', 'Crear, editar, eliminar partidos y entrenamientos'),
+('REGISTRAR_EVENTOS_PARTIDO', 'Registrar goles, asistencias, tarjetas, cambios'),
+('VER_ESTADISTICAS', 'Consultar estadísticas de equipo y jugadores'),
+('EDITAR_ESTADISTICAS', 'Editar estadísticas de equipo y jugadores'),
+('GESTION_CONVOCATORIAS', 'Crear convocatorias y modificar horarios'),
+('CONFIRMAR_ASISTENCIA', 'Confirmar asistencia a partidos/entrenamientos'),
+('GESTION_PAGOS', 'Registrar y gestionar cuotas/deudas'),
+('VER_PAGOS', 'Consultar estado de pagos propios'),
+('GESTION_GASTOS', 'Registrar y editar gastos comunes'),
+('REPORTES_FINANCIEROS', 'Consultar reportes de ingresos/egresos'),
+('CHAT', 'Acceder y participar en el chat'),
+('CONFIGURACION_GLOBAL', 'Configurar parámetros globales de la app'),
+('VER_PUBLICO', 'Ver calendario y estadísticas públicas');
+
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT 1, id FROM permissions;
+
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(2, 3),  -- GESTION_PARTIDOS
+(2, 4),  -- REGISTRAR_EVENTOS_PARTIDO
+(2, 5),  -- VER_ESTADISTICAS
+(2, 6),  -- EDITAR_ESTADISTICAS
+(2, 7),  -- GESTION_CONVOCATORIAS
+(2, 8),  -- CONFIRMAR_ASISTENCIA
+(2, 13);
+
+
+-- Jugador (id=3)
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(3, 5),   -- VER_ESTADISTICAS
+(3, 8),   -- CONFIRMAR_ASISTENCIA
+(3, 10),  -- VER_PAGOS
+(3, 13);  -- CHAT
+
+-- Tesorero (id=4)
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(4, 9),   -- GESTION_PAGOS
+(4, 11),  -- GESTION_GASTOS
+(4, 12);  -- REPORTES_FINANCIEROS
+
+-- Invitado (id=5)
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(5, 5),   -- VER_ESTADISTICAS
+(5, 15);  -- VER_PUBLICO
+
+
+INSERT INTO user_roles (user_id, role_id) VALUES
+(1, 1), -- admin_user -> Admin
+(3, 2), -- coach_user -> Entrenador
+(2, 3), -- player_user -> Jugador
+(36, 4), -- finance_user -> Tesorero
+(35, 5); -- guest_user -> Invitado

@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
   Request,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { GoogleAuthGuard } from './google/google-guards';
@@ -35,8 +36,10 @@ export class AuthController {
 
   @HttpCode(HttpStatus.OK)
   @Post('login')
-  login(@Body() input: { userName: string; password: string; email: string }) {
-    console.log('controller input   ' + input.userName);
+  login(@Body() input: { email: string; password: string }) {
+    console.log('controller input   ' + input);
+    // this.hashPassword(input.password);
+
     return this.authService.authenticate(input);
 
     // this.hashPassword(input.password);
@@ -83,5 +86,13 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   getAllContent() {
     return 'Contenido para cualquier usuario autenticado';
+  }
+
+  async refresh(@Body('refreshToken') refreshToken: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('No se proporcionó el refreshToken');
+    }
+
+    return this.authService.refreshTokens(refreshToken);
   }
 }

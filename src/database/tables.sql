@@ -5,6 +5,31 @@ CREATE TABLE sports (
     name VARCHAR(50) NOT NULL UNIQUE, -- Sport name (e.g., Football, Basketball)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+-- Create the "users" table
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY, -- Auto-incrementing primary key
+    username VARCHAR(50) NOT NULL UNIQUE, -- Unique username
+    email VARCHAR(100) NOT NULL UNIQUE, -- Unique email
+    password_hash TEXT, -- Hashed password (nullable para OAuth)
+    
+    -- Información personal
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    phone VARCHAR(20),
+    fecha_nacimiento DATE,
+    avatar_url TEXT,
+    
+    -- Estado y configuración
+    estado_registro VARCHAR(20) DEFAULT 'pending', -- pending, verified, active, suspended
+    email_verified BOOLEAN DEFAULT FALSE,
+    phone_verified BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    -- Timestamps
+    ultimo_login TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp for creation
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Timestamp for the last update
+);
 
 -- Teams table
 CREATE TABLE teams (
@@ -21,9 +46,30 @@ CREATE TABLE players (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL, -- Foreign key to users
     team_id INT NOT NULL, -- Foreign key to teams
+    
+    -- Información deportiva
+    posicion VARCHAR(30), -- Portero, Defensa, Mediocampo, Delantero, etc.
+    jersey_number INT,
+    height NUMERIC(5,2), -- en centímetros (ej: 175.50)
+    weight NUMERIC(5,2), -- en kilogramos (ej: 70.50)
+    dominant_foot VARCHAR(10), -- left, right, both
+    
+    -- Fechas importantes
+    joined_team_date DATE DEFAULT CURRENT_DATE,
+    contract_end_date DATE,
+    
+    -- Estado del jugador
+    is_active BOOLEAN DEFAULT TRUE,
+    is_captain BOOLEAN DEFAULT FALSE,
+    injury_status VARCHAR(20) DEFAULT 'healthy', -- healthy, injured, recovering
+    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
     CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    CONSTRAINT fk_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE
+    CONSTRAINT fk_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE,
+    CONSTRAINT unique_user_team UNIQUE (user_id, team_id), -- Un usuario por equipo
+    CONSTRAINT unique_jersey_team UNIQUE (team_id, jersey_number) -- Número único por equipo
 );
 
 -- PlayerStats table
@@ -131,6 +177,60 @@ CREATE TABLE notifications (
     CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- Create the "roles" table
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY, -- Auto-incrementing primary key
+    name VARCHAR(50) NOT NULL UNIQUE, -- Unique name for the role
+    description TEXT, -- Optional description for the role
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp for creation
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Timestamp for the last update
+);
+
+-- Create the "permissions" table
+CREATE TABLE permissions (
+    id SERIAL PRIMARY KEY, -- Auto-incrementing primary key
+    name VARCHAR(50) NOT NULL UNIQUE, -- Unique name for the permission
+    description TEXT, -- Optional description for the permission
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp for creation
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Timestamp for the last update
+);
+
+-- Create the "role_permissions" junction table
+CREATE TABLE role_permissions (
+    id SERIAL PRIMARY KEY, -- Auto-incrementing primary key
+    role_id INT NOT NULL, -- Foreign key to "roles"
+    permission_id INT NOT NULL, -- Foreign key to "permissions"
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp for creation
+    CONSTRAINT fk_role FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE,
+    CONSTRAINT fk_permission FOREIGN KEY (permission_id) REFERENCES permissions (id) ON DELETE CASCADE,
+    CONSTRAINT unique_role_permission UNIQUE (role_id, permission_id) -- Prevent duplicate assignments
+);
+
+-- Create the "user_roles" junction table
+CREATE TABLE user_roles (
+    id SERIAL PRIMARY KEY, -- Auto-incrementing primary key
+    user_id INT NOT NULL, -- Foreign key to "users"
+    role_id INT NOT NULL, -- Foreign key to "roles"
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp for creation
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_role FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE,
+    CONSTRAINT unique_user_role UNIQUE (user_id, role_id) -- Prevent duplicate assignments
+);
+
+CREATE TABLE languages (
+    language_id SERIAL PRIMARY KEY, -- Auto-incrementing primary key
+    name VARCHAR(50) NOT NULL UNIQUE, -- Language name (e.g., English, Spanish)
+    code VARCHAR(10) NOT NULL UNIQUE, -- Language code (e.g., en, es)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Timestamp for creation
+);
+
+CREATE TABLE Translations (
+    translation_id SERIAL PRIMARY KEY,
+    language_id INT REFERENCES Languages(language_id),
+    key VARCHAR(100) NOT NULL, -- e.g., 'welcome_message', 'player_stats'
+    translated_text TEXT NOT NULL
+);
+
 ALTER TABLE expenses
 ADD COLUMN created_by INT NOT NULL; -- Foreign key to users
 
@@ -162,3 +262,20 @@ ALTER TABLE events
 ALTER COLUMN event_time SET NOT NULL;
 
 ALTER TABLE roles ALTER COLUMN name SET DEFAULT 'player';
+
+-- Tabla para autenticación múltiple (Google, Facebook, Email)
+CREATE TABLE user_auth_providers (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    provider VARCHAR(20) NOT NULL, -- 'email', 'google', 'facebook', 'apple'
+    provider_id VARCHAR(100), -- ID del proveedor externo (para OAuth)
+    provider_email VARCHAR(100), -- Email del proveedor (puede diferir del email principal)
+    is_verified BOOLEAN DEFAULT FALSE,
+    is_primary BOOLEAN DEFAULT FALSE, -- Método principal de autenticación
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_user_auth FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT unique_user_provider UNIQUE (user_id, provider),
+    CONSTRAINT unique_provider_id UNIQUE (provider, provider_id)
+);
