@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UserRole } from './entities/userRole-entity';
+import { UserRole } from './entities/userRole.entity';
 
 @Injectable()
 export class UserRoleService {
@@ -19,14 +19,17 @@ export class UserRoleService {
     return await this.userRoleRepository.find({ relations: ['user', 'role'] });
   }
 
-  async findOne(id: number): Promise<UserRole> {
+  async findOne(userId: number, roleId: number): Promise<UserRole> {
     return await this.userRoleRepository.findOne({
-      where: { id },
+      where: { user_id: userId, role_id: roleId },
       relations: ['user', 'role'],
     });
   }
 
-  async delete(id: number): Promise<void> {
-    await this.userRoleRepository.delete(id);
+  async delete(userId: number, roleId: number): Promise<void> {
+    await this.userRoleRepository.delete({ 
+      user_id: userId, 
+      role_id: roleId 
+    });
   }
 }

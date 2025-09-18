@@ -2,8 +2,7 @@ import {
   CreateDateColumn,
   Entity,
   ManyToOne,
-  PrimaryGeneratedColumn,
-  Column,
+  PrimaryColumn,
   JoinColumn,
 } from 'typeorm';
 import { Role } from '../../roles/entities/role.entity';
@@ -11,18 +10,15 @@ import { Permission } from '../../permissions/entities/permission.entity';
 
 @Entity('role_permissions')
 export class RolePermission {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
+  @PrimaryColumn()
   role_id: number;
+
+  @PrimaryColumn()
+  permission_id: number;
 
   @ManyToOne(() => Role, (role) => role.permissions, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'role_id' })
   role: Role;
-
-  @Column()
-  permission_id: number;
 
   @ManyToOne(() => Permission, (permission) => permission.roles, {
     onDelete: 'CASCADE',

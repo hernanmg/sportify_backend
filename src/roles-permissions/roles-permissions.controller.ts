@@ -18,13 +18,19 @@ export class RolesPermissionsController {
     return this.rolePermissionService.findAll();
   }
 
-  @Get(':id')
-  async findOne(@Param('id') id: number): Promise<RolePermission> {
-    return this.rolePermissionService.findOne(id);
+  @Get(':roleId/:permissionId')
+  async findOne(
+    @Param('roleId') roleId: number, 
+    @Param('permissionId') permissionId: number
+  ): Promise<RolePermission> {
+    return this.rolePermissionService.findOne(roleId, permissionId);
   }
 
-  @Delete(':id')
-  async delete(@Param('id') id: number): Promise<void> {
-    return this.rolePermissionService.delete(id);
+  @Delete(':roleId/:permissionId')
+  async delete(
+    @Param('roleId') roleId: number, 
+    @Param('permissionId') permissionId: number
+  ): Promise<void> {
+    return this.rolePermissionService.delete(roleId, permissionId);
   }
 }

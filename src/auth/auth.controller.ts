@@ -95,4 +95,10 @@ export class AuthController {
 
     return this.authService.refreshTokens(refreshToken);
   }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('google/token')
+  async googleTokenAuth(@Body('accessToken') accessToken: string) {
+    return this.authService.validateGoogleToken(accessToken);
+  }
 }

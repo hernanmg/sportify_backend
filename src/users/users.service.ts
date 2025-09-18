@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-// import { InjectRepository } from '@nestjs/typeorm';
-import { User } from 'src/users/entities/user-entity';
+import { User } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
-// import { Repository } from 'typeorm';
-// import { CreateUserDto } from './dtos/create-user.dto';
+import { UpdateProfileDto } from './dtos/update-profile.dto';
 
 @Injectable()
 export class UsersService {
@@ -49,6 +47,106 @@ export class UsersService {
 
   async delete(id: number): Promise<void> {
     await this.userRepository.delete(id);
+  }
+
+  async createGoogleUser(data: {
+    email: string;
+    username: string;
+    googleId: string;
+  }): Promise<User> {
+    const user = this.userRepository.create({
+      email: data.email,
+      username: data.username,
+      googleId: data.googleId,
+      estadoRegistro: 'active',
+      emailVerified: true, // Google ya verificó el email
+      isActive: true,
+    });
+    
+    const savedUser = await this.userRepository.save(user);
+
+    // Asignar rol por defecto (user)
+    // TODO: Implementar asignación de rol por defecto
+    
+    return this.findOne(savedUser.id); // Retorna con relaciones cargadas
+  }
+
+  async updateGoogleId(userId: number, googleId: string): Promise<void> {
+    await this.userRepository.update(userId, { googleId });
+  }
+
+  async updateProfile(userId: number, updateProfileDto: UpdateProfileDto): Promise<User> {
+    await this.userRepository.update(userId, updateProfileDto);
+    
+    // Recalcular completion después de la actualización
+    const updatedUser = await this.findOne(userId);
+    const completion = this.calculateProfileCompletionInternal(updatedUser);
+    
+    if (completion !== updatedUser.profileCompletion) {
+      await this.userRepository.update(userId, { profileCompletion: completion });
+      updatedUser.profileCompletion = completion;
+    }
+    
+    return updatedUser;
+  }
+
+  async calculateProfileCompletion(userId: number): Promise<{ completion: number; missingFields: string[] }> {
+    const user = await this.findOne(userId);
+    const completion = this.calculateProfileCompletionInternal(user);
+    const missingFields = this.getMissingProfileFields(user);
+    
+    return { completion, missingFields };
+  }
+
+  private calculateProfileCompletionInternal(user: User): number {
+    const requiredFields = [
+      'username', 'email', 'firstName', 'lastName', 
+      'phone', 'fechaNacimiento', 'ciudad'
+    ];
+    
+    const optionalFields = [
+      'provincia', 'pais', 'bio', 'experienciaDeportiva', 'avatarUrl'
+    ];
+    
+    let completedRequired = 0;
+    let completedOptional = 0;
+    
+    // Campos obligatorios valen 70% del total
+    requiredFields.forEach(field => {
+      if (user[field] && user[field].toString().trim() !== '') {
+        completedRequired++;
+      }
+    });
+    
+    // Campos opcionales valen 30% del total
+    optionalFields.forEach(field => {
+      if (user[field] && user[field].toString().trim() !== '') {
+        completedOptional++;
+      }
+    });
+    
+    const requiredPercentage = (completedRequired / requiredFields.length) * 70;
+    const optionalPercentage = (completedOptional / optionalFields.length) * 30;
+    
+    return Math.round(requiredPercentage + optionalPercentage);
+  }
+
+  private getMissingProfileFields(user: User): string[] {
+    const allFields = [
+      { key: 'firstName', label: 'Nombre' },
+      { key: 'lastName', label: 'Apellido' },
+      { key: 'phone', label: 'Teléfono' },
+      { key: 'fechaNacimiento', label: 'Fecha de Nacimiento' },
+      { key: 'ciudad', label: 'Ciudad' },
+      { key: 'provincia', label: 'Provincia' },
+      { key: 'pais', label: 'País' },
+      { key: 'bio', label: 'Biografía' },
+      { key: 'experienciaDeportiva', label: 'Experiencia Deportiva' },
+    ];
+    
+    return allFields
+      .filter(field => !user[field.key] || user[field.key].toString().trim() === '')
+      .map(field => field.label);
   }
   // constructor() {} // @InjectRepository(Role) private roleRepository: Repository<Role>, // @InjectRepository(User) private userRepository: Repository<User>,
 

@@ -6,9 +6,9 @@ import {
   JoinColumn,
   CreateDateColumn,
 } from 'typeorm';
-import { TypeEvent } from './typeEvent-entity';
-import { Match } from 'src/matches/entities/match-entity';
-import { Player } from 'src/players/entities/player-entity';
+import { TypeEvent } from './typeEvent.entity';
+import { Match } from 'src/matches/entities/match.entity';
+import { Player } from 'src/players/entities/player.entity';
 
 @Entity('events')
 export class Event {

@@ -30,6 +30,60 @@ export class AuthService {
     };
   }
 
+  async validateGoogleToken(googleToken: string): Promise<AuthResult> {
+    const url = `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleToken}`;
+    try {
+      const response = await lastValueFrom(this.httpService.get(url));
+      const { id, email, name } = response.data;
+
+      console.log('Google user data:', { id, email, name });
+
+      if (!id || !email) {
+        throw new UnauthorizedException('Invalid Google token');
+      }
+
+      // Buscar o crear usuario en la base de datos
+      console.log('Buscando usuario por email:', email);
+      console.log('UserService instance:', this.userService);
+      
+      let user;
+      try {
+        user = await this.userService.findByEmail(email);
+        console.log('Usuario encontrado:', user);
+      } catch (error) {
+        console.error('Error al buscar usuario:', error);
+        throw new UnauthorizedException('Database error: ' + error.message);
+      }
+      
+      if (!user) {
+        // Crear nuevo usuario con datos de Google
+        user = await this.userService.createGoogleUser({
+          email,
+          username: name || email.split('@')[0],
+          googleId: id,
+        });
+      } else {
+        // Actualizar googleId si no existe
+        if (!user.googleId) {
+          await this.userService.updateGoogleId(user.id, id);
+        }
+      }
+
+      // Generar JWT con tu lógica
+      const userDto: UserResponseDto = {
+        id: user.id,
+        name: user.username,
+        userName: user.username,
+        accessToken: '',
+        role: user.userRoles?.[0]?.role?.name || 'user',
+      };
+
+      return this.singIn(userDto);
+    } catch (error) {
+      throw new UnauthorizedException('Invalid Google token: ' + error.message);
+    }
+  }
+
   async validateFacebookToken(facebookToken: string) {
     const url = `https://graph.facebook.com/me?access_token=${facebookToken}`;
     try {

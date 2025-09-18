@@ -1,6 +1,7 @@
-import { Team } from 'src/teams/entities/teams-entity';
-import { User } from 'src/users/entities/user-entity';
-import { Event } from 'src/events/entities/event-entity';
+import { Team } from 'src/teams/entities/teams.entity';
+import { User } from 'src/users/entities/user.entity';
+import { Event } from 'src/events/entities/event.entity';
+import { PlayerTeam } from 'src/player-teams/entities/player-team.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -77,4 +78,7 @@ export class Player {
 
   @OneToMany(() => Event, (event) => event.player)
   events: Event[];
+
+  @OneToMany(() => PlayerTeam, (playerTeam) => playerTeam.player)
+  playerTeams: PlayerTeam[];
 }

@@ -13,7 +13,7 @@
 // import { Notification } from 'src/notifications/entities/notification-entity';
 // import { Player } from 'src/players/entities/player-entity';
 // import { UserRole } from 'src/users-roles/entities/userRole-entity';
-import { UserAuthProvider } from 'src/auth/entities/user-auth-provider.entity';
+// import { UserAuthProvider } from 'src/auth/entities/user-auth-provider.entity'; // Comentado temporalmente
 import {
   Column,
   Entity,
@@ -53,6 +53,22 @@ export class User {
   @Column({ name: 'avatar_url', type: 'text', nullable: true })
   avatarUrl?: string;
 
+  // Información adicional de perfil
+  @Column({ name: 'ciudad', type: 'varchar', length: 100, nullable: true })
+  ciudad?: string;
+
+  @Column({ name: 'provincia', type: 'varchar', length: 100, nullable: true })
+  provincia?: string;
+
+  @Column({ name: 'pais', type: 'varchar', length: 100, nullable: true })
+  pais?: string;
+
+  @Column({ name: 'bio', type: 'text', nullable: true })
+  bio?: string;
+
+  @Column({ name: 'experiencia_deportiva', type: 'text', nullable: true })
+  experienciaDeportiva?: string;
+
   // Estado y configuración
   @Column({ 
     name: 'estado_registro', 
@@ -62,6 +78,13 @@ export class User {
   })
   estadoRegistro: string;
 
+  @Column({ 
+    name: 'profile_completion', 
+    type: 'int', 
+    default: 0 
+  })
+  profileCompletion: number; // Porcentaje de 0-100
+
   @Column({ name: 'email_verified', type: 'boolean', default: false })
   emailVerified: boolean;
 
@@ -70,6 +93,13 @@ export class User {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
+
+  // IDs de proveedores OAuth
+  @Column({ name: 'google_id', type: 'varchar', length: 255, nullable: true, unique: true })
+  googleId?: string;
+
+  @Column({ name: 'facebook_id', type: 'varchar', length: 255, nullable: true, unique: true })
+  facebookId?: string;
 
   // Timestamps
   @Column({ name: 'ultimo_login', type: 'timestamp', nullable: true })
@@ -91,8 +121,8 @@ export class User {
   @OneToMany('Notification', 'user')
   notifications: any[];
 
-  @OneToMany(() => UserAuthProvider, (authProvider) => authProvider.user, {
-    cascade: true, // opcional: persiste authProviders automáticamente al guardar user
-  })
-  authProviders: UserAuthProvider[];
+  // @OneToMany(() => UserAuthProvider, (authProvider) => authProvider.user, {
+  //   cascade: true, // opcional: persiste authProviders automáticamente al guardar user
+  // })
+  // authProviders: UserAuthProvider[]; // Comentado temporalmente
 }

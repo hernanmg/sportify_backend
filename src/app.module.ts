@@ -15,6 +15,7 @@ import { SportsModule } from './sports/sports.module';
 import { TeamsModule } from './teams/teams.module';
 import { EventsModule } from './events/event.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { CategoriesModule } from './categories/categories.module';
 import { databaseConfig } from './config/database.config';
 
 @Module({
@@ -30,16 +31,17 @@ import { databaseConfig } from './config/database.config';
     }),
     AuthModule,
     UsersModule,
-    RoleModule,
-    PermissionModule,
-    UserRoleModule,
-    RolesPermissionsModule,
+    // RoleModule,
+    // PermissionModule,
+    // UserRoleModule,
+    // RolesPermissionsModule,
     MatchesModule,
     PlayersModule,
     SportsModule,
     TeamsModule,
     EventsModule,
     NotificationsModule,
+    CategoriesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

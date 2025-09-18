@@ -15,8 +15,8 @@ services:
       - "5445:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./src/database/tables.sql:/docker-entrypoint-initdb.d/01-tables.sql
-      - ./src/database/inserts.sql:/docker-entrypoint-initdb.d/02-inserts.sql
+      # - ./src/database/tables.sql:/docker-entrypoint-initdb.d/01-tables.sql
+      # - ./src/database/inserts.sql:/docker-entrypoint-initdb.d/02-inserts.sql
     networks:
       - sportify_network
     healthcheck:

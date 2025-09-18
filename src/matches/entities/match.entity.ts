@@ -1,5 +1,5 @@
-import { Team } from 'src/teams/entities/teams-entity';
-import { Event } from 'src/events/entities/event-entity';
+import { Team } from 'src/teams/entities/teams.entity';
+import { Event } from 'src/events/entities/event.entity';
 import {
   Entity,
   Column,

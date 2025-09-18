@@ -1,5 +1,5 @@
 // import { User } from 'src/users/entities/user-entity'; // Removido para evitar dependencia circular
-import { User } from 'src/users/entities/user-entity';
+import { User } from 'src/users/entities/user.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -13,7 +13,7 @@ import {
 
 @Entity('user_auth_providers')
 @Index(['user_id', 'provider'], { unique: true })
-@Index(['provider', 'provider_id'], { unique: true })
+@Index(['provider', 'providerId'], { unique: true })
 export class UserAuthProvider {
   @PrimaryGeneratedColumn()
   id: number;
@@ -56,9 +56,9 @@ export class UserAuthProvider {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => User, (user) => user.authProviders, {
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  // @ManyToOne(() => User, (user) => user.authProviders, {
+  //   onDelete: 'CASCADE',
+  // })
+  // @JoinColumn({ name: 'user_id' })
+  // user: User; // Comentado temporalmente
 }

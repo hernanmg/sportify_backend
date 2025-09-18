@@ -1,4 +1,5 @@
-import { Team } from 'src/teams/entities/teams-entity';
+import { Team } from 'src/teams/entities/teams.entity';
+import { Category } from 'src/categories/entities/category.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -17,6 +18,9 @@ export class Sport {
 
   @OneToMany(() => Team, (team) => team.sport)
   teams: Team[];
+
+  @OneToMany(() => Category, (category) => category.sport)
+  categories: Category[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

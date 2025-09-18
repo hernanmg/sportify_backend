@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { GoogleStrategy } from './google/google-strategy';
+import { JwtStrategy } from './strategies/jwt.strategy';
 import { PassportModule } from '@nestjs/passport';
 import { SessionSerializer } from './serializer';
 import { AuthController } from './auth.controller';
@@ -14,7 +15,7 @@ import { UserAuthProvider } from './entities/user-auth-provider.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserAuthProvider]),
-    PassportModule.register({ session: true }),
+    PassportModule.register({ session: false }),
     HttpModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -26,7 +27,7 @@ import { UserAuthProvider } from './entities/user-auth-provider.entity';
     }),
     UsersModule,
   ],
-  providers: [AuthService, GoogleStrategy, SessionSerializer],
+  providers: [AuthService, GoogleStrategy, JwtStrategy, SessionSerializer],
   exports: [AuthService],
   controllers: [AuthController],
 })

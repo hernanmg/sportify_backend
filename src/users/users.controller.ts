@@ -14,7 +14,8 @@ import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
-import { User } from './entities/user-entity';
+import { User } from './entities/user.entity';
+import { UpdateProfileDto } from './dtos/update-profile.dto';
 
 @Controller('users')
 export class UsersController {
@@ -36,6 +37,18 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   async getProfile(@Req() req) {
     return req.user; // Información del usuario autenticado
+  }
+
+  @Put('profile')
+  @UseGuards(AuthGuard('jwt'))
+  async updateProfile(@Req() req, @Body() updateProfileDto: UpdateProfileDto) {
+    return this.userService.updateProfile(req.user.id, updateProfileDto);
+  }
+
+  @Get('profile/completion')
+  @UseGuards(AuthGuard('jwt'))
+  async getProfileCompletion(@Req() req) {
+    return this.userService.calculateProfileCompletion(req.user.id);
   }
 
   @Get(':id')

@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
 import { UserRoleService } from './users-roles.service';
-import { UserRole } from './entities/userRole-entity';
+import { UserRole } from './entities/userRole.entity';
 
 @Controller('user-roles')
 export class UserRoleController {
@@ -16,13 +16,19 @@ export class UserRoleController {
     return this.userRoleService.findAll();
   }
 
-  @Get(':id')
-  async findOne(@Param('id') id: number): Promise<UserRole> {
-    return this.userRoleService.findOne(id);
+  @Get(':userId/:roleId')
+  async findOne(
+    @Param('userId') userId: number, 
+    @Param('roleId') roleId: number
+  ): Promise<UserRole> {
+    return this.userRoleService.findOne(userId, roleId);
   }
 
-  @Delete(':id')
-  async delete(@Param('id') id: number): Promise<void> {
-    return this.userRoleService.delete(id);
+  @Delete(':userId/:roleId')
+  async delete(
+    @Param('userId') userId: number, 
+    @Param('roleId') roleId: number
+  ): Promise<void> {
+    return this.userRoleService.delete(userId, roleId);
   }
 }

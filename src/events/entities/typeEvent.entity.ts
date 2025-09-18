@@ -5,7 +5,7 @@ import {
   CreateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { Event } from './event-entity';
+import { Event } from './event.entity';
 
 @Entity('type_events')
 export class TypeEvent {
