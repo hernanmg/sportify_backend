@@ -88,6 +88,14 @@ INSERT INTO languages (name, code) VALUES
 ('Italiano', 'it'),
 ('Français', 'fr');
 
+-- Insert default roles (orden jerárquico)
+INSERT INTO roles (name, description) VALUES
+('super_admin', 'Administrador del sistema con acceso total'),
+('manager', 'Administrador de liga/torneo - gestiona equipos y usuarios'),
+('team_captain', 'Capitán de equipo - gestiona su equipo y jugadores'),
+('player', 'Jugador activo de un equipo'),
+('guest', 'Usuario básico sin equipo asignado');
+
 INSERT INTO permissions (name, description) VALUES
 ('GESTION_USUARIOS', 'Crear, editar, eliminar usuarios'),
 ('GESTION_ROLES', 'Crear, editar, asignar roles y permisos'),
@@ -106,41 +114,53 @@ INSERT INTO permissions (name, description) VALUES
 ('VER_PUBLICO', 'Ver calendario y estadísticas públicas');
 
 
+-- Asignar permisos por rol
+
+-- 1. super_admin: Todos los permisos
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 1, id FROM permissions;
 
+-- 2. manager: Gestión completa de liga/torneo
 INSERT INTO role_permissions (role_id, permission_id) VALUES
-(2, 3),  -- GESTION_PARTIDOS
-(2, 4),  -- REGISTRAR_EVENTOS_PARTIDO
-(2, 5),  -- VER_ESTADISTICAS
-(2, 6),  -- EDITAR_ESTADISTICAS
-(2, 7),  -- GESTION_CONVOCATORIAS
-(2, 8),  -- CONFIRMAR_ASISTENCIA
-(2, 13);
+(2, 1),   -- GESTION_USUARIOS
+(2, 2),   -- GESTION_ROLES  
+(2, 3),   -- GESTION_PARTIDOS
+(2, 4),   -- REGISTRAR_EVENTOS_PARTIDO
+(2, 5),   -- VER_ESTADISTICAS
+(2, 6),   -- EDITAR_ESTADISTICAS
+(2, 7),   -- GESTION_CONVOCATORIAS
+(2, 9),   -- GESTION_PAGOS
+(2, 11),  -- GESTION_GASTOS
+(2, 12),  -- REPORTES_FINANCIEROS
+(2, 13),  -- CHAT
+(2, 14);  -- CONFIGURACION_GLOBAL
 
-
--- Jugador (id=3)
+-- 3. team_captain: Gestión de su equipo
 INSERT INTO role_permissions (role_id, permission_id) VALUES
+(3, 3),   -- GESTION_PARTIDOS (su equipo)
+(3, 4),   -- REGISTRAR_EVENTOS_PARTIDO
 (3, 5),   -- VER_ESTADISTICAS
+(3, 6),   -- EDITAR_ESTADISTICAS (su equipo)
+(3, 7),   -- GESTION_CONVOCATORIAS
 (3, 8),   -- CONFIRMAR_ASISTENCIA
+(3, 9),   -- GESTION_PAGOS (su equipo)
 (3, 10),  -- VER_PAGOS
+(3, 11),  -- GESTION_GASTOS (su equipo)
 (3, 13);  -- CHAT
 
--- Tesorero (id=4)
+-- 4. player: Permisos básicos de jugador  
 INSERT INTO role_permissions (role_id, permission_id) VALUES
-(4, 9),   -- GESTION_PAGOS
-(4, 11),  -- GESTION_GASTOS
-(4, 12);  -- REPORTES_FINANCIEROS
+(4, 5),   -- VER_ESTADISTICAS
+(4, 8),   -- CONFIRMAR_ASISTENCIA
+(4, 10),  -- VER_PAGOS
+(4, 13),  -- CHAT
+(4, 15);  -- VER_PUBLICO
 
--- Invitado (id=5)
+-- 5. guest: Solo visualización básica
 INSERT INTO role_permissions (role_id, permission_id) VALUES
 (5, 5),   -- VER_ESTADISTICAS
 (5, 15);  -- VER_PUBLICO
 
-
+-- Asignar usuarios a roles por defecto (ejemplos)
 INSERT INTO user_roles (user_id, role_id) VALUES
-(1, 1), -- admin_user -> Admin
-(3, 2), -- coach_user -> Entrenador
-(2, 3), -- player_user -> Jugador
-(36, 4), -- finance_user -> Tesorero
-(35, 5); -- guest_user -> Invitado
+(1, 1); -- Primer usuario -> super_admin

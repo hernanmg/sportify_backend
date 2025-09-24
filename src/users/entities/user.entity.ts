@@ -9,11 +9,6 @@
 //   }
 // }
 
-// Importaciones removidas para evitar dependencias circulares
-// import { Notification } from 'src/notifications/entities/notification-entity';
-// import { Player } from 'src/players/entities/player-entity';
-// import { UserRole } from 'src/users-roles/entities/userRole-entity';
-// import { UserAuthProvider } from 'src/auth/entities/user-auth-provider.entity'; // Comentado temporalmente
 import {
   Column,
   Entity,
@@ -22,6 +17,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
+import { UserRole } from 'src/users-roles/entities/userRole.entity';
 
 @Entity('users')
 export class User {
@@ -94,6 +90,9 @@ export class User {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
+  @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
+  deletedAt?: Date;
+
   // IDs de proveedores OAuth
   @Column({ name: 'google_id', type: 'varchar', length: 255, nullable: true, unique: true })
   googleId?: string;
@@ -112,14 +111,8 @@ export class User {
   updatedAt: Date;
 
   // Relaciones
-  @OneToMany('UserRole', 'user')
-  userRoles: any[];
-
-  @OneToMany('Player', 'user')
-  players: any[];
-
-  @OneToMany('Notification', 'user')
-  notifications: any[];
+  @OneToMany(() => UserRole, (userRole) => userRole.user)
+  userRoles: UserRole[];
 
   // @OneToMany(() => UserAuthProvider, (authProvider) => authProvider.user, {
   //   cascade: true, // opcional: persiste authProviders automáticamente al guardar user

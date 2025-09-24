@@ -4,23 +4,30 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  Column,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
+import { User } from 'src/users/entities/user.entity';
+import { Role } from 'src/roles/entities/role.entity';
 
 @Entity('user_roles')
 export class UserRole {
-  @PrimaryColumn()
-  user_id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  @PrimaryColumn()
-  role_id: number;
+  @Column({ name: 'user_id' })
+  userId: number;
 
-  @ManyToOne('User', 'userRoles', { onDelete: 'CASCADE' })
+  @Column({ name: 'role_id' })
+  roleId: number;
+
+  @ManyToOne(() => User, (user) => user.userRoles, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
-  user: any;
+  user: User;
 
-  @ManyToOne('Role', 'userRoles', { onDelete: 'CASCADE' })
+  @ManyToOne(() => Role, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'role_id' })
-  role: any;
+  role: Role;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

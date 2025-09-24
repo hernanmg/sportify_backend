@@ -1,5 +1,5 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { lastValueFrom } from 'rxjs';
 import { UserResponseDto } from 'src/users/dtos/userResponseDto';
@@ -104,17 +104,49 @@ export class AuthService {
   }
   async validateUserLogin(input: AuthInput): Promise<UserResponseDto | null> {
     const user = await this.userService.findByEmail(input.email);
-    if (user && (await bcrypt.compare(input.password, user.passwordHash))) {
-      return {
-        id: user.id,
-        name: user.username,
-        userName: user.username,
-        accessToken: '',
-        role: user.userRoles[0].role.name,
-      };
-    } else {
-      throw new UnauthorizedException();
+    
+    if (!user) {
+      throw new UnauthorizedException('Usuario no encontrado');
     }
+
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Usuario sin contraseña configurada');
+    }
+
+    const isPasswordValid = await bcrypt.compare(input.password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Contraseña incorrecta');
+    }
+
+    // Verificar que el usuario tenga al menos un rol asignado
+    if (!user.userRoles || user.userRoles.length === 0) {
+      // Si no tiene roles, asignar rol 'guest' por defecto
+      await this.userService.assignRoleToUser(user.id, 5); // guest = role_id 5
+      
+      // Recargar el usuario con los roles actualizados
+      const updatedUser = await this.userService.findByEmail(input.email);
+      return {
+        id: updatedUser.id,
+        name: updatedUser.username,
+        userName: updatedUser.username,
+        accessToken: '',
+        role: 'guest',
+      };
+    }
+
+    // Obtener el primer rol del usuario
+    const userRole = user.userRoles[0];
+    if (!userRole || !userRole.role) {
+      throw new UnauthorizedException('Error en la configuración de roles del usuario');
+    }
+
+    return {
+      id: user.id,
+      name: user.username,
+      userName: user.username,
+      accessToken: '',
+      role: userRole.role.name,
+    };
   }
 
   async authenticate(input: AuthInput): Promise<AuthResult> {
@@ -194,5 +226,66 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('Refresh token inválido o expirado');
     }
+  }
+
+  async register(input: { 
+    email: string; 
+    password: string; 
+    firstName?: string; 
+    lastName?: string; 
+  }): Promise<AuthResult> {
+    const { email, password, firstName, lastName } = input;
+
+    // Validaciones básicas
+    if (!email || !password) {
+      throw new BadRequestException('Email y contraseña son requeridos');
+    }
+
+    if (password.length < 6) {
+      throw new BadRequestException('La contraseña debe tener al menos 6 caracteres');
+    }
+
+    // Verificar si el email ya existe
+    const existingUser = await this.userService.findByEmail(email);
+    if (existingUser) {
+      throw new ConflictException('El email ya está registrado');
+    }
+
+    // Hashear la contraseña
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Crear el usuario
+    const userData = {
+      email,
+      username: firstName ? `${firstName} ${lastName || ''}`.trim() : email.split('@')[0],
+      passwordHash: hashedPassword,
+      firstName,
+      lastName,
+      estadoRegistro: 'active',
+      emailVerified: false, // Podrías implementar verificación por email
+      isActive: true,
+      profileCompletion: 20, // Email y nombre básico = 20%
+    };
+
+    const newUser = await this.userService.create(userData);
+
+    try {
+      // Asignar rol por defecto 'guest' a usuarios nuevos
+      await this.userService.assignRoleToUser(newUser.id, 5); // guest = role_id 5
+    } catch (roleError) {
+      console.warn('Error asignando rol por defecto:', roleError.message);
+      // Continuar aunque falle la asignación de rol
+    }
+
+    // Generar tokens y retornar
+    const userDto: UserResponseDto = {
+      id: newUser.id,
+      name: newUser.username,
+      userName: newUser.username,
+      accessToken: '',
+      role: 'guest', // Rol por defecto para nuevos usuarios
+    };
+
+    return this.singIn(userDto);
   }
 }

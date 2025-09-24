@@ -21,15 +21,15 @@ export class UserRoleService {
 
   async findOne(userId: number, roleId: number): Promise<UserRole> {
     return await this.userRoleRepository.findOne({
-      where: { user_id: userId, role_id: roleId },
+      where: { userId, roleId },
       relations: ['user', 'role'],
     });
   }
 
   async delete(userId: number, roleId: number): Promise<void> {
     await this.userRoleRepository.delete({ 
-      user_id: userId, 
-      role_id: roleId 
+      userId, 
+      roleId 
     });
   }
 }

@@ -17,7 +17,7 @@ export class Role {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'name', type: 'varchar', length: '50', unique: true })
+  @Column({ name: 'name', type: 'varchar', length: 50, unique: true })
   name: string;
 
   @Column({ name: 'description', type: 'text', nullable: true })

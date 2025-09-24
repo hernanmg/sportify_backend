@@ -1,14 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { UpdateProfileDto } from './dtos/update-profile.dto';
+import { UserRole } from 'src/users-roles/entities/userRole.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(UserRole)
+    private readonly userRoleRepository: Repository<UserRole>,
   ) {}
 
   async create(data: Partial<User>): Promise<User> {
@@ -18,25 +21,26 @@ export class UsersService {
 
   async findAll(): Promise<User[]> {
     return await this.userRepository.find({
+      where: { deletedAt: null }, // Excluir usuarios eliminados
       relations: ['userRoles', 'userRoles.role'],
     });
   }
 
   async findOne(id: number): Promise<User> {
     return await this.userRepository.findOne({
-      where: { id },
+      where: { id, deletedAt: null }, // Excluir eliminados
       relations: ['userRoles', 'userRoles.role'],
     });
   }
   async findByName(username: string): Promise<User> {
     return await this.userRepository.findOne({
-      where: { username },
+      where: { username, deletedAt: null }, // Excluir eliminados
       relations: ['userRoles', 'userRoles.role'],
     });
   }
   async findByEmail(email: string): Promise<User> {
     return await this.userRepository.findOne({
-      where: { email },
+      where: { email, deletedAt: null }, // Excluir eliminados
       relations: ['userRoles', 'userRoles.role'],
     });
   }
@@ -46,6 +50,32 @@ export class UsersService {
   }
 
   async delete(id: number): Promise<void> {
+    // Eliminación lógica: marcar como eliminado en lugar de borrar físicamente
+    await this.userRepository.update(id, {
+      deletedAt: new Date(),
+      isActive: false,
+    });
+  }
+
+  async restore(id: number): Promise<User> {
+    // Restaurar usuario eliminado
+    await this.userRepository.update(id, {
+      deletedAt: null,
+      isActive: true,
+    });
+    return this.findOne(id);
+  }
+
+  async findDeleted(): Promise<User[]> {
+    // Encontrar usuarios eliminados (soft deleted)
+    return await this.userRepository.find({
+      where: { deletedAt: Not(null) },
+      relations: ['userRoles', 'userRoles.role'],
+    });
+  }
+
+  async permanentDelete(id: number): Promise<void> {
+    // Eliminación física permanente (solo para casos excepcionales)
     await this.userRepository.delete(id);
   }
 
@@ -191,6 +221,25 @@ export class UsersService {
   //     userName: 'pepapig',
   //   },
   // ];
+
+  async assignRoleToUser(userId: number, roleId: number): Promise<UserRole> {
+    // Verificar si ya existe la relación
+    const existingUserRole = await this.userRoleRepository.findOne({
+      where: { userId, roleId }
+    });
+
+    if (existingUserRole) {
+      return existingUserRole;
+    }
+
+    // Crear nueva relación usuario-rol
+    const userRole = this.userRoleRepository.create({
+      userId,
+      roleId
+    });
+
+    return await this.userRoleRepository.save(userRole);
+  }
 
   // async findByUserName(userName: string): Promise<User | undefined> {
   //   console.log(userName);

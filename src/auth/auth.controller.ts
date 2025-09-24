@@ -101,4 +101,10 @@ export class AuthController {
   async googleTokenAuth(@Body('accessToken') accessToken: string) {
     return this.authService.validateGoogleToken(accessToken);
   }
+
+  @HttpCode(HttpStatus.CREATED)
+  @Post('register')
+  async register(@Body() input: { email: string; password: string; firstName?: string; lastName?: string }) {
+    return this.authService.register(input);
+  }
 }
