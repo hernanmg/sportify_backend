@@ -16,6 +16,7 @@ import { TeamsModule } from './teams/teams.module';
 import { EventsModule } from './events/event.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CategoriesModule } from './categories/categories.module';
+import { RosterModule } from './roster/roster.module';
 import { databaseConfig } from './config/database.config';
 
 @Module({
@@ -42,6 +43,7 @@ import { databaseConfig } from './config/database.config';
     EventsModule,
     NotificationsModule,
     CategoriesModule,
+    RosterModule,
   ],
   controllers: [AppController],
   providers: [AppService],

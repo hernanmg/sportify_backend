@@ -1,9 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
-import { Repository, Not } from 'typeorm';
+import { Repository, Not, IsNull } from 'typeorm';
 import { UpdateProfileDto } from './dtos/update-profile.dto';
+import { ChangePasswordDto } from './dtos/change-password.dto';
 import { UserRole } from 'src/users-roles/entities/userRole.entity';
+import { Role } from 'src/roles/entities/role.entity';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
@@ -12,6 +15,8 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserRole)
     private readonly userRoleRepository: Repository<UserRole>,
+    @InjectRepository(Role)
+    private readonly roleRepository: Repository<Role>,
   ) {}
 
   async create(data: Partial<User>): Promise<User> {
@@ -20,27 +25,31 @@ export class UsersService {
   }
 
   async findAll(): Promise<User[]> {
-    return await this.userRepository.find({
-      where: { deletedAt: null }, // Excluir usuarios eliminados
-      relations: ['userRoles', 'userRoles.role'],
-    });
+    try {
+      return await this.userRepository.find({
+        relations: ['userRoles', 'userRoles.role'],
+      });
+    } catch (error) {
+      console.error('Error in findAll users:', error);
+      throw error;
+    }
   }
 
   async findOne(id: number): Promise<User> {
     return await this.userRepository.findOne({
-      where: { id, deletedAt: null }, // Excluir eliminados
+      where: { id, deletedAt: IsNull() }, // Excluir eliminados
       relations: ['userRoles', 'userRoles.role'],
     });
   }
   async findByName(username: string): Promise<User> {
     return await this.userRepository.findOne({
-      where: { username, deletedAt: null }, // Excluir eliminados
+      where: { username, deletedAt: IsNull() }, // Excluir eliminados
       relations: ['userRoles', 'userRoles.role'],
     });
   }
   async findByEmail(email: string): Promise<User> {
     return await this.userRepository.findOne({
-      where: { email, deletedAt: null }, // Excluir eliminados
+      where: { email, deletedAt: IsNull() }, // Excluir eliminados
       relations: ['userRoles', 'userRoles.role'],
     });
   }
@@ -68,15 +77,60 @@ export class UsersService {
 
   async findDeleted(): Promise<User[]> {
     // Encontrar usuarios eliminados (soft deleted)
-    return await this.userRepository.find({
-      where: { deletedAt: Not(null) },
-      relations: ['userRoles', 'userRoles.role'],
-    });
+    return await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userRoles', 'userRoles')
+      .leftJoinAndSelect('userRoles.role', 'role')
+      .where('user.deletedAt IS NOT NULL')
+      .getMany();
   }
 
   async permanentDelete(id: number): Promise<void> {
     // Eliminación física permanente (solo para casos excepcionales)
     await this.userRepository.delete(id);
+  }
+
+  async changePassword(userId: number, changePasswordDto: ChangePasswordDto): Promise<void> {
+    const { currentPassword, newPassword } = changePasswordDto;
+
+    // Buscar el usuario incluyendo eliminados para poder cambiar contraseña si está soft-deleted
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'passwordHash', 'email', 'isActive'],
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (!user.isActive) {
+      throw new BadRequestException('No se puede cambiar la contraseña de un usuario inactivo');
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException('Este usuario no tiene contraseña configurada. Use autenticación OAuth o contacte al administrador.');
+    }
+
+    // Verificar contraseña actual
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isCurrentPasswordValid) {
+      throw new UnauthorizedException('La contraseña actual es incorrecta');
+    }
+
+    // Verificar que la nueva contraseña sea diferente
+    const isSamePassword = await bcrypt.compare(newPassword, user.passwordHash);
+    if (isSamePassword) {
+      throw new BadRequestException('La nueva contraseña debe ser diferente a la actual');
+    }
+
+    // Hashear nueva contraseña
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Actualizar contraseña
+    await this.userRepository.update(userId, {
+      passwordHash: hashedNewPassword,
+      updatedAt: new Date(),
+    });
   }
 
   async createGoogleUser(data: {
@@ -275,4 +329,44 @@ export class UsersService {
   //   const bcrypt = await import('bcrypt');
   //   return bcrypt.hash(password, 10);
   // }
+
+  // Gestión de roles de usuarios
+  async updateUserRole(userId: number, newRoleId: number): Promise<User> {
+    // Primero verificamos que el usuario existe
+    const user = await this.findOne(userId);
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    // Verificamos que el nuevo rol existe
+    const role = await this.roleRepository.findOne({ where: { id: newRoleId } });
+    if (!role) {
+      throw new Error('Rol no encontrado');
+    }
+
+    // Removemos todos los roles existentes del usuario
+    await this.userRoleRepository.delete({ userId });
+
+    // Asignamos el nuevo rol
+    const userRole = this.userRoleRepository.create({
+      userId,
+      roleId: newRoleId,
+    });
+    await this.userRoleRepository.save(userRole);
+
+    // Retornamos el usuario actualizado con relaciones
+    return this.findOne(userId);
+  }
+
+  async removeRoleFromUser(userId: number, roleId: number): Promise<void> {
+    const userRole = await this.userRoleRepository.findOne({
+      where: { userId, roleId }
+    });
+
+    if (!userRole) {
+      throw new Error('El usuario no tiene ese rol asignado');
+    }
+
+    await this.userRoleRepository.remove(userRole);
+  }
 }

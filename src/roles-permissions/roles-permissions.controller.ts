@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { RolePermission } from './entities/rolePermission.entity';
 import { RolesPermissionsService } from './roles-permissions.service';
 
@@ -33,4 +33,10 @@ export class RolesPermissionsController {
   ): Promise<void> {
     return this.rolePermissionService.delete(roleId, permissionId);
   }
+
+  @Get('role/:roleId')
+  async findByRole(@Param('roleId',ParseIntPipe) roleId: number) {
+    return this.rolePermissionService.findByRole(roleId);
+  }
+  
 }

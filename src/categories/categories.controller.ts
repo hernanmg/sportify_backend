@@ -22,7 +22,7 @@ export class CategoriesController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('admin')
+  @Roles('super_admin', 'manager')
   create(@Body() createCategoryDto: CreateCategoryDto) {
     return this.categoriesService.create(createCategoryDto);
   }
@@ -44,7 +44,7 @@ export class CategoriesController {
 
   @Post('seed/football')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('admin')
+  @Roles('super_admin', 'manager')
   seedFootballCategories() {
     return this.categoriesService.seedFootballCategories();
   }
@@ -56,7 +56,7 @@ export class CategoriesController {
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('admin')
+  @Roles('super_admin', 'manager')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateCategoryDto: UpdateCategoryDto,
@@ -66,14 +66,14 @@ export class CategoriesController {
 
   @Patch(':id/toggle')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('admin')
+  @Roles('super_admin', 'manager')
   toggleActive(@Param('id', ParseIntPipe) id: number) {
     return this.categoriesService.toggleActive(id);
   }
 
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('admin')
+  @Roles('super_admin', 'manager')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.categoriesService.remove(id);
   }

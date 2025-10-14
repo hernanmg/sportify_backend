@@ -9,6 +9,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Permission } from '../../permissions/entities/permission.entity';
+import { RolePermission } from '../../roles-permissions/entities/rolePermission.entity';
 // import { UserRole } from 'src/users-roles/entities/userRole-entity'; // Removido para evitar dependencia circular
 
 // Entity: Role
@@ -38,6 +39,10 @@ export class Role {
     inverseJoinColumn: { name: 'permission_id', referencedColumnName: 'id' },
   })
   permissions: Permission[];
+
+  // Relación con la tabla intermedia role_permissions
+  @OneToMany(() => RolePermission, (rolePermission) => rolePermission.role)
+  rolePermissions: RolePermission[];
 
  //@OneToMany('UserRole', 'role', { cascade: true })
   //userRoles: any[];

@@ -70,7 +70,7 @@ export class AuthController {
 
   @Get('admin')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('admin') // Solo los administradores pueden acceder
+  @Roles('super_admin', 'manager') // Solo super_admin y manager pueden acceder
   getAdminContent() {
     return 'Contenido exclusivo para administradores';
   }

@@ -164,3 +164,31 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES
 -- Asignar usuarios a roles por defecto (ejemplos)
 INSERT INTO user_roles (user_id, role_id) VALUES
 (1, 1); -- Primer usuario -> super_admin
+
+-- Insertar datos de prueba para player_roster (Lista de Buena Fe)
+INSERT INTO player_roster (
+    player_id, 
+    team_id, 
+    jersey_number, 
+    medical_certificate_date, 
+    medical_certificate_expires, 
+    is_enabled, 
+    position, 
+    document_number, 
+    emergency_contact, 
+    season, 
+    category, 
+    medical_status, 
+    notes
+) VALUES
+-- Equipo Eagles FC (team_id = 7) - Usar los player_id que existen (1, 2, 3)
+(1, 7, 10, '2024-01-15', '2025-01-15', TRUE, 'midfielder', '12345678', 'Charlie Brown - 555-0101', '2024-Apertura', '+35', 'approved', 'Capitán del equipo'),
+(2, 7, 9, '2024-02-01', '2025-02-01', TRUE, 'forward', '23456789', 'Bob Smith - 555-0102', '2024-Apertura', '+35', 'approved', 'Goleador del equipo'),
+(3, 7, 1, '2024-01-20', '2025-01-20', TRUE, 'goalkeeper', '34567890', 'Alice Johnson - 555-0103', '2024-Apertura', '+35', 'approved', 'Arquero titular'),
+
+-- Equipo Sharks Basketball (team_id = 8) - Algunos con apto vencido
+(1, 8, 23, '2023-12-01', '2024-12-01', FALSE, 'player', '12345678', 'Charlie Brown - 555-0101', '2024-Apertura', '+35', 'expired', 'Apto médico vencido'),
+(2, 8, 15, '2024-03-01', '2025-03-01', TRUE, 'player', '23456789', 'Bob Smith - 555-0102', '2024-Apertura', '+35', 'approved', 'Jugador activo'),
+
+-- Equipo Wolves BB (team_id = 9)
+(3, 9, 7, '2024-01-10', '2025-01-10', TRUE, 'player', '34567890', 'Alice Johnson - 555-0103', '2024-Apertura', '+35', 'approved', 'Nuevo en el equipo');

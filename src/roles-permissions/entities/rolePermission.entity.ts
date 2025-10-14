@@ -10,11 +10,11 @@ import { Permission } from '../../permissions/entities/permission.entity';
 
 @Entity('role_permissions')
 export class RolePermission {
-  @PrimaryColumn()
-  role_id: number;
+  @PrimaryColumn({ name: 'role_id' })
+  roleId: number;
 
-  @PrimaryColumn()
-  permission_id: number;
+  @PrimaryColumn({ name: 'permission_id' })
+  permissionId: number;
 
   @ManyToOne(() => Role, (role) => role.permissions, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'role_id' })

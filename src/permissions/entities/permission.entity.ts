@@ -3,10 +3,12 @@ import {
   CreateDateColumn,
   Entity,
   ManyToMany,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Role } from '../../roles/entities/role.entity';
+import { RolePermission } from '../../roles-permissions/entities/rolePermission.entity';
 
 @Entity('permissions')
 export class Permission {
@@ -27,4 +29,8 @@ export class Permission {
 
   @ManyToMany(() => Role, (role) => role.permissions)
   roles: Role[];
+
+  // Relación con la tabla intermedia role_permissions
+  @OneToMany(() => RolePermission, (rolePermission) => rolePermission.permission)
+  rolePermissions: RolePermission[];
 }

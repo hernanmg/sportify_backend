@@ -25,15 +25,24 @@ export class RolesPermissionsService {
 
   async findOne(roleId: number, permissionId: number): Promise<RolePermission> {
     return await this.rolePermissionRepository.findOne({
-      where: { role_id: roleId, permission_id: permissionId },
+      where: { roleId: roleId, permissionId: permissionId },
       relations: ['role', 'permission'],
     });
   }
 
   async delete(roleId: number, permissionId: number): Promise<void> {
     await this.rolePermissionRepository.delete({ 
-      role_id: roleId, 
-      permission_id: permissionId 
+      roleId: roleId, 
+      permissionId: permissionId 
+    });
+
+    
+  }
+
+  async findByRole(roleId: number) {
+    return this.rolePermissionRepository.find({
+      where: { roleId: roleId },
+      relations: ['permission'],
     });
   }
   // private permissions: Permission[] = [
