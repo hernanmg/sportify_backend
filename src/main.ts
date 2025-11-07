@@ -3,12 +3,18 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as session from 'express-session';
 import * as passport from 'passport';
+import { config } from 'dotenv';
+
+// Cargar variables de entorno explícitamente
+config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: 'http://localhost:8082', // Ajusta esto según tu frontend
+    origin: ['http://localhost:3000', 'http://localhost:44941','http://localhost:37209', 'http://127.0.0.1:44711', 'http://localhost:44711',/^http:\/\/localhost:\d+$/], // Ajusta esto según tu frontend
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
 
   // Configuración de Swagger

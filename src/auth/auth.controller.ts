@@ -71,8 +71,17 @@ export class AuthController {
   @Get('admin')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('super_admin', 'manager') // Solo super_admin y manager pueden acceder
-  getAdminContent() {
-    return 'Contenido exclusivo para administradores';
+  getAdminContent(@Request() req) {
+    return {
+      message: 'Contenido exclusivo para administradores',
+      user: {
+        id: req.user.id,
+        username: req.user.username,
+        email: req.user.email,
+        role: req.user.role,
+      },
+      timestamp: new Date().toISOString(),
+    };
   }
 
   @Get('user')

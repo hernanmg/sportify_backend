@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convocatoria a Partido</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+        .highlight { background: #e8f5e8; padding: 15px; border-left: 4px solid #4CAF50; margin: 20px 0; }
+        .button { display: inline-block; background: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 30px; padding: 20px; color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚽ Convocatoria a Partido</h1>
+        <p>{{teamName}}</p>
+    </div>
+    
+    <div class="content">
+        <h2>¡Hola {{playerName}}!</h2>
+        
+        <p>Has sido <strong>convocado</strong> para el próximo partido oficial.</p>
+        
+        <div class="highlight">
+            <h3>📅 Detalles del Partido:</h3>
+            <ul>
+                <li><strong>Fecha:</strong> {{matchDate}}</li>
+                <li><strong>Rival:</strong> {{opponent}}</li>
+                <li><strong>Ubicación:</strong> {{location}}</li>
+            </ul>
+        </div>
+        
+        <p><strong>⚠️ Importante:</strong> Recuerda que para participar en partidos oficiales debes tener:</p>
+        <ul>
+            <li>✅ Cuotas al día</li>
+            <li>✅ Apto médico vigente</li>
+            <li>✅ Documentación en regla</li>
+        </ul>
+        
+        <p>Por favor, confirma tu asistencia lo antes posible.</p>
+        
+        <p><strong>¡Nos vemos en la cancha! 🏆</strong></p>
+    </div>
+    
+    <div class="footer">
+        <p>Este email fue enviado automáticamente por Sportify Amateur</p>
+        <p>Si tienes alguna consulta, contacta a tu director técnico</p>
+    </div>
+</body>
+</html>

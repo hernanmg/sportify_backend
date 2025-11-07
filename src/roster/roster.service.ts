@@ -57,7 +57,7 @@ export class RosterService {
     // Verificar que el número de camiseta no esté ocupado en esa temporada
     const existingJersey = await this.rosterRepository.findOne({
       where: {
-        team: { id: createRosterDto.teamId },
+        teamId: createRosterDto.teamId,
         jerseyNumber: createRosterDto.jerseyNumber,
         season: createRosterDto.season
       }
@@ -69,8 +69,8 @@ export class RosterService {
     // Verificar que el jugador no esté ya registrado en esa temporada para ese equipo
     const existingPlayer = await this.rosterRepository.findOne({
       where: {
-        player: { id: createRosterDto.playerId },
-        team: { id: createRosterDto.teamId },
+        playerId: createRosterDto.playerId,
+        teamId: createRosterDto.teamId,
         season: createRosterDto.season
       }
     });
@@ -79,7 +79,9 @@ export class RosterService {
     }
 
     const roster = this.rosterRepository.create({
+      playerId: createRosterDto.playerId,
       player,
+      teamId: createRosterDto.teamId,
       team,
       jerseyNumber: createRosterDto.jerseyNumber,
       medicalCertificateDate: createRosterDto.medicalCertificateDate ? new Date(createRosterDto.medicalCertificateDate) : null,
@@ -113,7 +115,7 @@ export class RosterService {
 
   async findByTeam(teamId: number, season?: string): Promise<PlayerRoster[]> {
     try {
-      const whereCondition: any = { team: { id: teamId } };
+      const whereCondition: any = { teamId };
       if (season) {
         whereCondition.season = season;
       }
@@ -164,10 +166,10 @@ export class RosterService {
     if (updateRosterDto.jerseyNumber && updateRosterDto.jerseyNumber !== roster.jerseyNumber) {
       const existingJersey = await this.rosterRepository.findOne({
         where: {
-          team: { id: roster.team.id },
+          teamId: roster.teamId,
           jerseyNumber: updateRosterDto.jerseyNumber,
           season: roster.season,
-            id: Not(id) // Excluir el registro actual
+          id: Not(id) // Excluir el registro actual
         }
       });
       if (existingJersey) {
@@ -198,7 +200,7 @@ export class RosterService {
   async getEnabledPlayersByTeam(teamId: number, season: string): Promise<PlayerRoster[]> {
     return await this.rosterRepository.find({
       where: {
-        team: { id: teamId },
+        teamId,
         season,
         isEnabled: true,
         medicalStatus: 'approved'
@@ -210,7 +212,7 @@ export class RosterService {
 
   async getAvailableJerseyNumbers(teamId: number, season: string): Promise<number[]> {
     const usedNumbers = await this.rosterRepository.find({
-      where: { team: { id: teamId }, season },
+      where: { teamId, season },
       select: ['jerseyNumber']
     });
 

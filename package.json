@@ -6,10 +6,11 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "build": "nest build && npm run copy:templates",
+    "copy:templates": "mkdir -p dist/email/templates && cp -r src/email/templates/* dist/email/templates/",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "nest start --debug --watch",
+    "start:dev": "npm run copy:templates && nest start --debug --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
@@ -27,6 +28,7 @@
     "dev:full": "npm run db:start && npm run start:dev"
   },
   "dependencies": {
+    "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/axios": "^3.1.2",
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.3.0",
@@ -46,7 +48,9 @@
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.5",
     "express-session": "^1.18.1",
+    "handlebars": "^4.7.8",
     "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.10",
     "passport": "^0.7.0",
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",

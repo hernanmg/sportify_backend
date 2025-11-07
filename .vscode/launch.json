@@ -24,7 +24,9 @@
       "localRoot": "${workspaceFolder}",
       "remoteRoot": "${workspaceFolder}",
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+      "skipFiles": ["<node_internals>/**"]
     }
   ]
 }

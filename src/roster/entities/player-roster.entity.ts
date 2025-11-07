@@ -12,15 +12,21 @@ import { Player } from '../../players/entities/player.entity';
 import { Team } from '../../teams/entities/teams.entity';
 
 @Entity('player_roster')
-@Unique(['team', 'jerseyNumber', 'season']) // Un número por equipo por temporada
-@Unique(['player', 'team', 'season']) // Un jugador por equipo por temporada
+@Unique(['teamId', 'jerseyNumber', 'season']) // Un número por equipo por temporada
+@Unique(['playerId', 'teamId', 'season']) // Un jugador por equipo por temporada
 export class PlayerRoster {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ name: 'player_id' })
+  playerId: number;
+
   @ManyToOne(() => Player, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'player_id' })
   player: Player;
+
+  @Column({ name: 'team_id' })
+  teamId: number;
 
   @ManyToOne(() => Team, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'team_id' })
