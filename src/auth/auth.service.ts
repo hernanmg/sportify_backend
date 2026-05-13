@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { lastValueFrom } from 'rxjs';
 import { UserResponseDto } from 'src/users/dtos/userResponseDto';
 import { UsersService } from 'src/users/users.service';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 type AuthInput = { email: string; password: string };
 type AuthResult = {

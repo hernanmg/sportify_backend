@@ -1,0 +1,127 @@
+{{> base}}
+
+{{#*inline "content"}}
+<div style="background-color: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+  <div style="display: flex; align-items: center; margin-bottom: 15px;">
+    <div style="background-color: #10b981; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px;">
+      ✅
+    </div>
+    <div>
+      <h2 style="color: #10b981; margin: 0; font-size: 24px;">Evento Finalizado</h2>
+      <p style="color: #065f46; margin: 5px 0 0 0;">¡Gracias por tu participación!</p>
+    </div>
+  </div>
+</div>
+
+<div style="background-color: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <h3 style="color: #1f2937; margin-top: 0;">{{eventTitle}}</h3>
+  
+  <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+    El evento <strong>{{eventTitle}}</strong> ha finalizado exitosamente. ¡Gracias por tu participación y compromiso!
+  </p>
+
+  {{#if eventDate}}
+  <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0; color: #6b7280;">
+      <strong>Fecha:</strong> {{eventDate}}<br>
+      {{#if location}}<strong>Ubicación:</strong> {{location}}<br>{{/if}}
+      {{#if opponent}}<strong>Rival:</strong> {{opponent}}<br>{{/if}}
+      {{#if duration}}<strong>Duración:</strong> {{duration}}<br>{{/if}}
+    </p>
+  </div>
+  {{/if}}
+
+  {{#if result}}
+  <div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #1e40af; margin: 0 0 10px 0;">Resultado:</h4>
+    <p style="color: #1e3a8a; margin: 0; font-size: 16px; font-weight: bold;">{{result}}</p>
+  </div>
+  {{/if}}
+
+  {{#if highlights}}
+  <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #92400e; margin: 0 0 10px 0;">Destacados del evento:</h4>
+    <div style="color: #78350f;">
+      {{#each highlights}}
+      <p style="margin: 5px 0;">• {{this}}</p>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if stats}}
+  <div style="background-color: #f0f9ff; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <h4 style="color: #1e40af; margin: 0 0 15px 0;">Estadísticas:</h4>
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+      {{#if stats.attendance}}
+      <div style="text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #1e40af;">{{stats.attendance}}</div>
+        <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Asistentes</div>
+      </div>
+      {{/if}}
+      {{#if stats.goals}}
+      <div style="text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #1e40af;">{{stats.goals}}</div>
+        <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Goles</div>
+      </div>
+      {{/if}}
+      {{#if stats.yellowCards}}
+      <div style="text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">{{stats.yellowCards}}</div>
+        <div style="font-size: 12px; color: #64748b; text-transform: uppercase">Tarjetas Amarillas</div>
+      </div>
+      {{/if}}
+      {{#if stats.redCards}}
+      <div style="text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #dc2626;">{{stats.redCards}}</div>
+        <div style="font-size: 12px; color: #64748b; text-transform: uppercase">Tarjetas Rojas</div>
+      </div>
+      {{/if}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if notes}}
+  <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #0c4a6e; margin: 0 0 10px 0;">Comentarios del cuerpo técnico:</h4>
+    <p style="color: #075985; margin: 0;">{{notes}}</p>
+  </div>
+  {{/if}}
+
+  {{#if nextEvent}}
+  <div style="background-color: #ecfdf5; border: 1px solid #bbf7d0; border-radius: 6px; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #065f46; margin: 0 0 10px 0;">🗓️ Próximo evento:</h4>
+    <p style="color: #047857; margin: 0;">
+      <strong>{{nextEvent.title}}</strong><br>
+      {{nextEvent.date}}
+      {{#if nextEvent.location}} - {{nextEvent.location}}{{/if}}
+    </p>
+  </div>
+  {{/if}}
+
+  <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0; color: #4b5563; font-size: 14px;">
+      <strong>¡Sigue así!</strong><br>
+      • Tu compromiso hace la diferencia en el equipo<br>
+      • Mantente atento a próximas convocatorias<br>
+      • Continúa entrenando y mejorando cada día<br>
+      • Si tienes feedback, compártelo con el cuerpo técnico
+    </p>
+  </div>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+  <p style="color: #6b7280; font-size: 14px;">
+    ¡Gracias por ser parte del equipo!<br>
+    Juntos seguimos creciendo y mejorando.
+  </p>
+  
+  {{#if photoUrl}}
+  <p style="margin-top: 15px;">
+    <a href="{{photoUrl}}" style="color: #3b82f6; text-decoration: none; font-weight: bold;">
+      📸 Ver fotos del evento
+    </a>
+  </p>
+  {{/if}}
+</div>
+{{/inline}}

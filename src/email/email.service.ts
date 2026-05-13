@@ -36,6 +36,8 @@ export class EmailService {
   async sendEmail(emailData: EmailData): Promise<boolean> {
     try {
       this.logger.log(`📧 Enviando email a: ${emailData.to}`);
+      this.logger.log(`📋 Template: ${emailData.template}`);
+      this.logger.log(`📦 Context:`, JSON.stringify(emailData.context, null, 2));
       
       // Intentar primero con MailerService de NestJS
       await this.mailerService.sendMail({
@@ -52,6 +54,7 @@ export class EmailService {
       
       try {
         // Fallback: usar nodemailer directo
+        this.logger.log(`🔄 Usando fallback directo con context:`, JSON.stringify(emailData.context, null, 2));
         await this.sendEmailDirect(emailData);
         this.logger.log(`✅ Email enviado exitosamente a: ${emailData.to} (vía nodemailer directo)`);
         return true;
@@ -86,19 +89,36 @@ export class EmailService {
       case 'training-reminder':
         return `
           <h2>🏃‍♂️ Recordatorio de Entrenamiento</h2>
-          <p><strong>Evento:</strong> ${context.eventTitle}</p>
-          <p><strong>Fecha:</strong> ${context.eventDate}</p>
-          <p><strong>Ubicación:</strong> ${context.location}</p>
-          <p><strong>Equipo:</strong> ${context.teamName}</p>
+          <p><strong>Hola ${context.playerName || 'Jugador'}!</strong></p>
+          <p><strong>Evento:</strong> ${context.eventTitle || 'Entrenamiento'}</p>
+          <p><strong>Fecha:</strong> ${context.date || context.trainingDate || 'Por definir'}</p>
+          <p><strong>Ubicación:</strong> ${context.location || 'Por definir'}</p>
+          <p><strong>Duración:</strong> ${context.duration || 'Por definir'}</p>
+          <p><strong>Equipo:</strong> ${context.teamName || 'Equipo'}</p>
           <p>¡No faltes al entrenamiento!</p>
+
+
+          <p><strong>💡 Recomendaciones:</strong></p>
+          <ul>
+            <li>🥤 Lleva hidratación suficiente</li>
+            <li>👕 Usa ropa deportiva cómoda</li>
+            <li>⏰ Llega 10 minutos antes</li>
+            <li>🧤 No olvides los guantes (arqueros)</li>
+          </ul>
+          <p><strong>¡Te esperamos para seguir mejorando juntos! 💪</strong></p>
+
+          <p>Este email fue enviado automáticamente por Sportify Amateur</p>
+          <p>Si tienes alguna consulta, contacta a tu director técnico</p>
         `;
       case 'match-invitation':
         return `
           <h2>⚽ Convocatoria para Partido</h2>
-          <p><strong>Partido:</strong> ${context.eventTitle}</p>
-          <p><strong>Fecha:</strong> ${context.eventDate}</p>
-          <p><strong>Ubicación:</strong> ${context.location}</p>
-          <p><strong>Equipo:</strong> ${context.teamName}</p>
+          <p><strong>Hola ${context.playerName || 'Jugador'}!</strong></p>
+          <p><strong>Partido:</strong> ${context.eventTitle || 'Partido'}</p>
+          <p><strong>Fecha:</strong> ${context.date || context.matchDate || 'Por definir'}</p>
+          <p><strong>Rival:</strong> ${context.opponent || 'Por definir'}</p>
+          <p><strong>Ubicación:</strong> ${context.location || 'Por definir'}</p>
+          <p><strong>Equipo:</strong> ${context.teamName || 'Equipo'}</p>
           <p>¡Estás convocado para el partido!</p>
         `;
       default:
@@ -137,7 +157,8 @@ export class EmailService {
           template: 'match-invitation',
           context: {
             playerName: data.playerName,
-            matchDate: data.matchDate,
+            eventTitle: data.eventTitle,
+            date: data.date || data.matchDate,
             opponent: data.opponent,
             location: data.location,
             teamName: data.teamName,
@@ -150,7 +171,8 @@ export class EmailService {
           template: 'training-reminder',
           context: {
             playerName: data.playerName,
-            trainingDate: data.trainingDate,
+            eventTitle: data.eventTitle,
+            date: data.date || data.trainingDate,
             location: data.location,
             duration: data.duration,
             teamName: data.teamName,

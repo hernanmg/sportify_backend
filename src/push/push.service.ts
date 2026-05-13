@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { NotificationGateway } from '../websockets/websocket.gateway';
 
 export interface PushNotificationData {
   userId: number;
@@ -22,6 +23,11 @@ export class PushService {
   
   // En el futuro, aquí se almacenarán los tokens de dispositivos
   private deviceTokens: Map<number, DeviceToken[]> = new Map();
+
+  constructor(
+    @Inject(forwardRef(() => NotificationGateway))
+    private readonly webSocketGateway: NotificationGateway,
+  ) {}
 
   // Registrar token de dispositivo
   async registerDeviceToken(userId: number, token: string, platform: 'ios' | 'android' | 'web'): Promise<void> {
@@ -54,22 +60,38 @@ export class PushService {
     try {
       this.logger.log(`🔔 Enviando push notification a usuario ${notification.userId}`);
       
-      const userTokens = this.deviceTokens.get(notification.userId);
-      if (!userTokens || userTokens.length === 0) {
-        this.logger.warn(`⚠️ No hay tokens registrados para usuario ${notification.userId}`);
-        return false;
+      // 1. Intentar envío via WebSocket (tiempo real)
+      const isConnected = this.webSocketGateway.isUserConnected(notification.userId);
+      if (isConnected) {
+        this.webSocketGateway.sendNotificationToUser(notification.userId, {
+          id: Date.now(),
+          title: notification.title,
+          body: notification.body,
+          type: notification.type,
+          data: notification.data,
+          timestamp: new Date().toISOString(),
+        });
+        this.logger.log(`✅ Notificación WebSocket enviada a usuario ${notification.userId}`);
+      } else {
+        this.logger.log(`📱 Usuario ${notification.userId} no conectado via WebSocket`);
       }
 
-      // Por ahora, solo logueamos la notificación
-      // En el futuro, aquí se integrará con Firebase Cloud Messaging (FCM)
+      // 2. Verificar tokens para push nativo (futuro)
+      const userTokens = this.deviceTokens.get(notification.userId);
+      if (!userTokens || userTokens.length === 0) {
+        this.logger.log(`⚠️ No hay tokens push registrados para usuario ${notification.userId}`);
+        return isConnected; // Si se envió via WebSocket, consideramos éxito
+      }
+
+      // 3. Envío push nativo (preparado para futuro)
       this.logger.log(`📤 Push notification preparada:`);
       this.logger.log(`   Título: ${notification.title}`);
       this.logger.log(`   Mensaje: ${notification.body}`);
       this.logger.log(`   Tipo: ${notification.type}`);
       this.logger.log(`   Tokens activos: ${userTokens.filter(t => t.isActive).length}`);
 
-      // TODO: Implementar envío real con FCM
-      // await this.sendToFCM(userTokens, notification);
+      // TODO: Implementar envío real con Service Workers
+      // await this.sendToServiceWorker(userTokens, notification);
 
       return true;
     } catch (error) {

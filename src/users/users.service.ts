@@ -6,7 +6,7 @@ import { UpdateProfileDto } from './dtos/update-profile.dto';
 import { ChangePasswordDto } from './dtos/change-password.dto';
 import { UserRole } from 'src/users-roles/entities/userRole.entity';
 import { Role } from 'src/roles/entities/role.entity';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
@@ -47,11 +47,18 @@ export class UsersService {
       relations: ['userRoles', 'userRoles.role'],
     });
   }
-  async findByEmail(email: string): Promise<User> {
-    return await this.userRepository.findOne({
-      where: { email, deletedAt: IsNull() }, // Excluir eliminados
-      relations: ['userRoles', 'userRoles.role'],
-    });
+  async findByEmail(email: string): Promise<User | null> {
+    const trimmed = email?.trim();
+    if (!trimmed) {
+      return null;
+    }
+    return await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userRoles', 'userRoles')
+      .leftJoinAndSelect('userRoles.role', 'role')
+      .where('LOWER(user.email) = LOWER(:email)', { email: trimmed })
+      .andWhere('user.deletedAt IS NULL')
+      .getOne();
   }
   async update(id: number, data: Partial<User>): Promise<User> {
     await this.userRepository.update(id, data);

@@ -18,6 +18,9 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { CategoriesModule } from './categories/categories.module';
 import { RosterModule } from './roster/roster.module';
 import { databaseConfig } from './config/database.config';
+import { WebSocketsModule } from './websockets/websockets.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -44,6 +47,9 @@ import { databaseConfig } from './config/database.config';
     NotificationsModule,
     CategoriesModule,
     RosterModule,
+    WebSocketsModule,
+    SchedulerModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

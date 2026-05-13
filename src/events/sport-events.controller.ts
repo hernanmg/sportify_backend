@@ -84,8 +84,9 @@ export class SportEventsController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateSportEventDto: UpdateSportEventDto,
+    @Request() req,
   ) {
-    return await this.sportEventsService.update(id, updateSportEventDto);
+    return await this.sportEventsService.update(id, updateSportEventDto, req.user.id);
   }
 
   @Delete(':id')

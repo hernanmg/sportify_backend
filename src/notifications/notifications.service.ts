@@ -26,6 +26,34 @@ export class NotificationsService {
     this.sns = new AWS.SNS({ region: 'us-east-1' });
   }
 
+  // Enviar notificación a todo el equipo
+  async sendTeamNotification(
+    teamId: number,
+    title: string,
+    message: string,
+    type: NotificationType,
+    sportEventId?: number,
+  ): Promise<void> {
+    // Obtener todos los jugadores del equipo
+    const teamPlayers = await this.rosterRepository.find({
+      where: { teamId },
+      relations: ['player', 'player.user'],
+    });
+
+    // Crear notificaciones para cada jugador
+    for (const roster of teamPlayers) {
+      if (roster.player && roster.player.user) {
+        await this.createNotification({
+          userId: roster.player.user.id,
+          title,
+          message,
+          type,
+          sportEventId,
+        });
+      }
+    }
+  }
+
   // Crear notificación individual
   async createNotification(createNotificationDto: CreateNotificationDto): Promise<Notification> {
     const notification = this.notificationRepository.create({

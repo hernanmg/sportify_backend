@@ -45,7 +45,7 @@ export class AuthController {
     // this.hashPassword(input.password);
   }
   private async hashPassword(password: string) {
-    const bcrypt = await import('bcrypt');
+    const bcrypt = await import('bcryptjs');
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log(hashedPassword);
   }
@@ -97,6 +97,8 @@ export class AuthController {
     return 'Contenido para cualquier usuario autenticado';
   }
 
+  @HttpCode(HttpStatus.OK)
+  @Post('refresh')
   async refresh(@Body('refreshToken') refreshToken: string) {
     if (!refreshToken) {
       throw new UnauthorizedException('No se proporcionó el refreshToken');
