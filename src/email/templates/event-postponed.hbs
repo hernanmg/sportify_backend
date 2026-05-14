@@ -1,0 +1,81 @@
+{{> base}}
+
+{{#*inline "content"}}
+<div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 20px; margin: 20px 0;">
+  <div style="display: flex; align-items: center; margin-bottom: 15px;">
+    <div style="background-color: #f59e0b; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px;">
+      ⏰
+    </div>
+    <div>
+      <h2 style="color: #f59e0b; margin: 0; font-size: 24px;">Evento Pospuesto</h2>
+      <p style="color: #92400e; margin: 5px 0 0 0;">Cambio de fecha para tu evento</p>
+    </div>
+  </div>
+</div>
+
+<div style="background-color: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <h3 style="color: #1f2937; margin-top: 0;">{{eventTitle}}</h3>
+  
+  <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+    Te informamos que el evento <strong>{{eventTitle}}</strong> ha sido <strong style="color: #f59e0b;">pospuesto</strong>.
+  </p>
+
+  {{#if eventDate}}
+  <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0; color: #6b7280;">
+      <strong>Fecha original:</strong> {{eventDate}}<br>
+      {{#if location}}<strong>Ubicación:</strong> {{location}}<br>{{/if}}
+      {{#if opponent}}<strong>Rival:</strong> {{opponent}}<br>{{/if}}
+    </p>
+  </div>
+  {{/if}}
+
+  {{#if newDate}}
+  <div style="background-color: #d1fae5; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #065f46; margin: 0 0 10px 0;">Nueva fecha:</h4>
+    <p style="color: #047857; margin: 0; font-size: 16px; font-weight: bold;">{{newDate}}</p>
+    {{#if newLocation}}<p style="color: #047857; margin: 5px 0 0 0;">Ubicación: {{newLocation}}</p>{{/if}}
+  </div>
+  {{else}}
+  <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #92400e; margin: 0 0 10px 0;">Nueva fecha:</h4>
+    <p style="color: #78350f; margin: 0;">Se informará próximamente</p>
+  </div>
+  {{/if}}
+
+  {{#if reason}}
+  <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #0c4a6e; margin: 0 0 10px 0;">Motivo del cambio:</h4>
+    <p style="color: #075985; margin: 0;">{{reason}}</p>
+  </div>
+  {{/if}}
+
+  {{#if notes}}
+  <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #0c4a6e; margin: 0 0 10px 0;">Información adicional:</h4>
+    <p style="color: #075985; margin: 0;">{{notes}}</p>
+  </div>
+  {{/if}}
+
+  <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0; color: #4b5563; font-size: 14px;">
+      <strong>¿Qué hacer ahora?</strong><br>
+      {{#if newDate}}
+      • Anota la nueva fecha en tu calendario<br>
+      • Confirma tu asistencia cuando se solicite<br>
+      {{else}}
+      • Mantente atento a la confirmación de la nueva fecha<br>
+      • Te notificaremos tan pronto tengamos más información<br>
+      {{/if}}
+      • Si tienes dudas, contacta con el cuerpo técnico
+    </p>
+  </div>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+  <p style="color: #6b7280; font-size: 14px;">
+    Gracias por tu comprensión.<br>
+    Te mantendremos informado sobre cualquier novedad.
+  </p>
+</div>
+{{/inline}}

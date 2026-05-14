@@ -26,9 +26,16 @@
         <div class="highlight">
             <h3>📅 Detalles del Entrenamiento:</h3>
             <ul>
-                <li><strong>Fecha:</strong> {{trainingDate}}</li>
+                <li><strong>Evento:</strong> {{eventTitle}}</li>
+                <li><strong>Fecha:</strong> {{date}}</li>
                 <li><strong>Ubicación:</strong> {{location}}</li>
                 <li><strong>Duración:</strong> {{duration}}</li>
+                {{#if description}}
+                <li><strong>Descripción:</strong> {{description}}</li>
+                {{/if}}
+                {{#if notes}}
+                <li><strong>Notas:</strong> {{notes}}</li>
+                {{/if}}
             </ul>
         </div>
         

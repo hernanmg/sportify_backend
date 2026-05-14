@@ -8,6 +8,7 @@ import { PlayerRoster } from '../roster/entities/player-roster.entity';
 import { User } from '../users/entities/user.entity';
 import { Team } from '../teams/entities/teams.entity';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EventStateService } from './event-state.service';
 
 @Injectable()
 export class SportEventsService {
@@ -23,6 +24,7 @@ export class SportEventsService {
     @InjectRepository(Team)
     private readonly teamRepository: Repository<Team>,
     private readonly notificationsService: NotificationsService,
+    private readonly eventStateService: EventStateService,
   ) {}
 
   async create(createSportEventDto: CreateSportEventDto): Promise<SportEvent> {
@@ -97,8 +99,9 @@ export class SportEventsService {
     return event;
   }
 
-  async update(id: number, updateSportEventDto: UpdateSportEventDto): Promise<SportEvent> {
+  async update(id: number, updateSportEventDto: UpdateSportEventDto, changedBy?: number): Promise<SportEvent> {
     const event = await this.findOne(id);
+    const oldStatus = event.status;
 
     // Actualizar campos
     Object.assign(event, {
@@ -110,6 +113,26 @@ export class SportEventsService {
     });
 
     await this.sportEventRepository.save(event);
+    
+    // Verificar si cambió el estado y notificar
+    if (updateSportEventDto.status && oldStatus !== updateSportEventDto.status) {
+      const participants = await this.participantRepository.find({
+        where: { eventId: id },
+        relations: ['user'],
+      });
+
+      await this.eventStateService.handleEventStateChange({
+        eventId: id,
+        eventTitle: event.title,
+        eventType: event.type,
+        oldStatus,
+        newStatus: updateSportEventDto.status,
+        changedBy: changedBy || event.createdBy,
+        teamId: event.teamId,
+        participants,
+      });
+    }
+
     return await this.findOne(id);
   }
 
@@ -307,10 +330,17 @@ export class SportEventsService {
             event.id,
             event.teamId,
             {
-              date: event.eventDate.toISOString(),
+              eventTitle: event.title,
+              date: event.eventDate.toLocaleString('es-AR', { 
+                dateStyle: 'full', 
+                timeStyle: 'short' 
+              }),
               location: event.location || 'Por definir',
               duration: event.durationMinutes ? `${event.durationMinutes} minutos` : 'Por definir',
-            }
+              description: event.description?.trim() || undefined,
+              notes: event.notes?.trim() || undefined,
+            },
+            [event.createdBy],
           );
           console.log(`✅ Training reminder sent for event ${event.id}`);
           break;
@@ -320,10 +350,15 @@ export class SportEventsService {
             event.id,
             event.teamId,
             {
-              date: event.eventDate.toISOString(),
+              eventTitle: event.title,
+              date: event.eventDate.toLocaleString('es-AR', { 
+                dateStyle: 'full', 
+                timeStyle: 'short' 
+              }),
               opponent: event.opponentName || 'Por definir',
               location: event.location || 'Por definir',
-            }
+            },
+            [event.createdBy],
           );
           break;
 
@@ -336,7 +371,8 @@ export class SportEventsService {
               date: event.eventDate.toISOString(),
               location: event.location || 'Por definir',
               hasExpenses: event.hasExpenses,
-            }
+            },
+            [event.createdBy],
           );
           break;
       }

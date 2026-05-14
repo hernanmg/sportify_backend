@@ -1,0 +1,63 @@
+{{> base}}
+
+{{#*inline "content"}}
+<div style="background-color: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin: 20px 0;">
+  <div style="display: flex; align-items: center; margin-bottom: 15px;">
+    <div style="background-color: #dc2626; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px;">
+      ❌
+    </div>
+    <div>
+      <h2 style="color: #dc2626; margin: 0; font-size: 24px;">Evento Cancelado</h2>
+      <p style="color: #7f1d1d; margin: 5px 0 0 0;">Información importante sobre tu evento</p>
+    </div>
+  </div>
+</div>
+
+<div style="background-color: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <h3 style="color: #1f2937; margin-top: 0;">{{eventTitle}}</h3>
+  
+  <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+    Lamentamos informarte que el evento <strong>{{eventTitle}}</strong> ha sido <strong style="color: #dc2626;">cancelado</strong>.
+  </p>
+
+  {{#if eventDate}}
+  <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0; color: #6b7280;">
+      <strong>Fecha original:</strong> {{eventDate}}<br>
+      {{#if location}}<strong>Ubicación:</strong> {{location}}<br>{{/if}}
+      {{#if opponent}}<strong>Rival:</strong> {{opponent}}<br>{{/if}}
+    </p>
+  </div>
+  {{/if}}
+
+  {{#if reason}}
+  <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #92400e; margin: 0 0 10px 0;">Motivo de la cancelación:</h4>
+    <p style="color: #78350f; margin: 0;">{{reason}}</p>
+  </div>
+  {{/if}}
+
+  {{#if notes}}
+  <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0;">
+    <h4 style="color: #0c4a6e; margin: 0 0 10px 0;">Información adicional:</h4>
+    <p style="color: #075985; margin: 0;">{{notes}}</p>
+  </div>
+  {{/if}}
+
+  <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <p style="margin: 0; color: #4b5563; font-size: 14px;">
+      <strong>¿Qué hacer ahora?</strong><br>
+      • No es necesario que confirmes tu ausencia<br>
+      • Mantente atento a futuras comunicaciones<br>
+      • Si tienes dudas, contacta con el cuerpo técnico
+    </p>
+  </div>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+  <p style="color: #6b7280; font-size: 14px;">
+    Disculpas por las molestias ocasionadas.<br>
+    Te mantendremos informado sobre próximos eventos.
+  </p>
+</div>
+{{/inline}}

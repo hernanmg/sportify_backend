@@ -1,15 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Category } from './entities/category.entity';
 import { CreateCategoryDto } from './dtos/create-category.dto';
 import { UpdateCategoryDto } from './dtos/update-category.dto';
+import { Sport } from 'src/sports/entities/sport.entity';
 
 @Injectable()
 export class CategoriesService {
   constructor(
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(Sport)
+    private readonly sportRepository: Repository<Sport>,
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
@@ -76,7 +83,38 @@ export class CategoriesService {
     });
   }
 
-  async seedFootballCategories(): Promise<Category[]> {
+  async resolveSportId(sportId?: number): Promise<number> {
+    if (sportId) {
+      const sport = await this.sportRepository.findOne({ where: { id: sportId } });
+      if (!sport) {
+        throw new NotFoundException(`Sport with ID ${sportId} not found`);
+      }
+      return sport.id;
+    }
+
+    const football = await this.sportRepository.findOne({
+      where: { name: 'Fútbol' },
+    });
+    if (football) {
+      return football.id;
+    }
+
+    const firstSport = await this.sportRepository.find({
+      order: { id: 'ASC' },
+      take: 1,
+    });
+    if (!firstSport.length) {
+      throw new BadRequestException(
+        'No hay deportes cargados. Creá al menos un deporte antes de sembrar categorías.',
+      );
+    }
+
+    return firstSport[0].id;
+  }
+
+  async seedFootballCategories(sportId?: number): Promise<Category[]> {
+    const resolvedSportId = await this.resolveSportId(sportId);
+
     const footballCategories = [
       { name: 'Libre', description: 'Categoría libre sin restricciones de edad', gender: 'mixto', sortOrder: 1 },
       { name: 'Masculino', description: 'Categoría masculina', gender: 'masculino', sortOrder: 2 },
@@ -88,11 +126,19 @@ export class CategoriesService {
       { name: 'Juvenil', description: 'Categoría juvenil (hasta 18 años)', ageMax: 18, gender: 'mixto', sortOrder: 8 },
     ];
 
-    const createdCategories = [];
+    const createdCategories: Category[] = [];
     for (const categoryData of footballCategories) {
+      const existing = await this.categoryRepository.findOne({
+        where: { name: categoryData.name, sportId: resolvedSportId },
+      });
+      if (existing) {
+        createdCategories.push(existing);
+        continue;
+      }
+
       const category = this.categoryRepository.create({
         ...categoryData,
-        sportId: 1, // Asumiendo que Fútbol tiene ID 1
+        sportId: resolvedSportId,
       });
       createdCategories.push(await this.categoryRepository.save(category));
     }

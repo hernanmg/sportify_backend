@@ -26,6 +26,7 @@ export enum SportEventStatus {
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
+  POSTPONED = 'postponed',
 }
 
 @Entity('sport_events')
@@ -113,6 +114,10 @@ export class SportEvent {
 
   @Column({ type: 'json', nullable: true })
   metadata?: any; // Para datos específicos del tipo de evento
+
+  // Control de recordatorios automáticos
+  @Column({ name: 'reminder_sent', type: 'boolean', default: false })
+  reminderSent: boolean;
 
   @OneToMany(() => EventParticipant, participant => participant.event)
   participants: EventParticipant[];

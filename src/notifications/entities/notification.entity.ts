@@ -20,6 +20,11 @@ export enum NotificationType {
   MEDICAL_EXPIRY = 'medical_expiry',
   GENERAL = 'general',
   ROSTER_UPDATE = 'roster_update',
+  EVENT_CANCELLED = 'event_cancelled',
+  EVENT_POSTPONED = 'event_postponed',
+  EVENT_RESCHEDULED = 'event_rescheduled',
+  EVENT_COMPLETED = 'event_completed',
+  EVENT_STARTED = 'event_started',
 }
 
 export enum NotificationPriority {

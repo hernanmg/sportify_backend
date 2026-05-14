@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MatchesModule } from '../matches/matches.module';
 import { Event } from './entities/event.entity';
@@ -16,6 +16,9 @@ import { DebugController } from './debug.controller';
 import { PlayerRoster } from '../roster/entities/player-roster.entity';
 import { User } from '../users/entities/user.entity';
 import { Team } from '../teams/entities/teams.entity';
+import { EventStateService } from './event-state.service';
+import { SchedulerModule } from '../scheduler/scheduler.module';
+import { WebSocketsModule } from '../websockets/websockets.module';
 
 @Module({
   imports: [
@@ -29,10 +32,12 @@ import { Team } from '../teams/entities/teams.entity';
       Team
     ]),
     MatchesModule,
-    NotificationsModule,
+    forwardRef(() => NotificationsModule),
+    forwardRef(() => SchedulerModule),
+    forwardRef(() => WebSocketsModule),
   ],
   controllers: [EventsController, SportEventsController, ConvocationsController, DebugController],
-  providers: [EventsService, SportEventsService, ConvocationsService],
-  exports: [EventsService, SportEventsService, ConvocationsService],
+  providers: [EventsService, SportEventsService, ConvocationsService, EventStateService],
+  exports: [EventsService, SportEventsService, ConvocationsService, EventStateService],
 })
 export class EventsModule {}
