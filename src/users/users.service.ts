@@ -167,7 +167,18 @@ export class UsersService {
   }
 
   async updateProfile(userId: number, updateProfileDto: UpdateProfileDto): Promise<User> {
-    await this.userRepository.update(userId, updateProfileDto);
+    const payload: UpdateProfileDto = { ...updateProfileDto };
+
+    if (payload.fechaNacimiento) {
+      const normalized = this.normalizeBirthDate(payload.fechaNacimiento);
+      if (normalized) {
+        payload.fechaNacimiento = normalized;
+      } else {
+        delete payload.fechaNacimiento;
+      }
+    }
+
+    await this.userRepository.update(userId, payload);
     
     // Recalcular completion después de la actualización
     const updatedUser = await this.findOne(userId);
@@ -179,6 +190,43 @@ export class UsersService {
     }
     
     return updatedUser;
+  }
+
+  private normalizeBirthDate(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    const slashParts = trimmed.split('/');
+    if (slashParts.length === 3) {
+      const day = Number(slashParts[0]);
+      const month = Number(slashParts[1]);
+      const year = Number(slashParts[2]);
+      if (
+        Number.isInteger(day) &&
+        Number.isInteger(month) &&
+        Number.isInteger(year) &&
+        year >= 1900 &&
+        month >= 1 &&
+        month <= 12 &&
+        day >= 1 &&
+        day <= 31
+      ) {
+        return `${year.toString().padStart(4, '0')}-${month
+          .toString()
+          .padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      }
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+
+    return null;
   }
 
   async calculateProfileCompletion(userId: number): Promise<{ completion: number; missingFields: string[] }> {

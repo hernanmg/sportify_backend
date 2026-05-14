@@ -1,5 +1,5 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
-import { NotificationType } from '../notifications/entities/notification.entity';
+import { NotificationType, Notification } from '../notifications/entities/notification.entity';
 import { NotificationGateway } from '../websockets/websocket.gateway';
 
 export interface PushNotificationData {
@@ -56,21 +56,23 @@ export class PushService {
   }
 
   // Enviar notificación push a un usuario
-  async sendPushNotification(notification: PushNotificationData): Promise<boolean> {
+  async sendPushNotification(
+    notification: PushNotificationData,
+    savedNotification?: Notification,
+  ): Promise<boolean> {
     try {
       this.logger.log(`🔔 Enviando push notification a usuario ${notification.userId}`);
       
-      // 1. Intentar envío via WebSocket (tiempo real)
+      const realtimePayload = savedNotification
+        ? this.buildRealtimePayload(savedNotification)
+        : this.buildRealtimePayload(notification);
+
       const isConnected = this.webSocketGateway.isUserConnected(notification.userId);
       if (isConnected) {
-        this.webSocketGateway.sendNotificationToUser(notification.userId, {
-          id: Date.now(),
-          title: notification.title,
-          body: notification.body,
-          type: notification.type,
-          data: notification.data,
-          timestamp: new Date().toISOString(),
-        });
+        this.webSocketGateway.sendNotificationToUser(
+          notification.userId,
+          realtimePayload,
+        );
         this.logger.log(`✅ Notificación WebSocket enviada a usuario ${notification.userId}`);
       } else {
         this.logger.log(`📱 Usuario ${notification.userId} no conectado via WebSocket`);
@@ -119,6 +121,50 @@ export class PushService {
   }
 
   // Desactivar token de dispositivo
+  private buildRealtimePayload(
+    notification: PushNotificationData | Notification,
+    messageOverride?: string,
+  ) {
+    const isEntity = 'userId' in notification && 'message' in notification;
+    const now = new Date().toISOString();
+
+    if (isEntity) {
+      const entity = notification as Notification;
+      return {
+        id: entity.id,
+        userId: entity.userId,
+        teamId: entity.teamId,
+        sportEventId: entity.sportEventId,
+        type: entity.type,
+        priority: entity.priority,
+        title: entity.title,
+        message: entity.message,
+        body: entity.message,
+        data: entity.data,
+        isRead: entity.isRead,
+        sent: entity.sent,
+        createdAt: entity.createdAt?.toISOString?.() ?? now,
+        updatedAt: entity.updatedAt?.toISOString?.() ?? now,
+      };
+    }
+
+    const push = notification as PushNotificationData;
+    return {
+      id: Date.now(),
+      userId: push.userId,
+      title: push.title,
+      message: messageOverride ?? push.body,
+      body: push.body,
+      type: push.type,
+      priority: 'medium',
+      data: push.data,
+      isRead: false,
+      sent: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
   async unregisterDeviceToken(userId: number, token: string): Promise<void> {
     const userTokens = this.deviceTokens.get(userId);
     if (!userTokens) return;

@@ -94,6 +94,8 @@ export class EmailService {
           <p><strong>Fecha:</strong> ${context.date || context.trainingDate || 'Por definir'}</p>
           <p><strong>Ubicación:</strong> ${context.location || 'Por definir'}</p>
           <p><strong>Duración:</strong> ${context.duration || 'Por definir'}</p>
+          ${context.description ? `<p><strong>Descripción:</strong> ${context.description}</p>` : ''}
+          ${context.notes ? `<p><strong>Notas:</strong> ${context.notes}</p>` : ''}
           <p><strong>Equipo:</strong> ${context.teamName || 'Equipo'}</p>
           <p>¡No faltes al entrenamiento!</p>
 
@@ -175,6 +177,8 @@ export class EmailService {
             date: data.date || data.trainingDate,
             location: data.location,
             duration: data.duration,
+            description: data.description,
+            notes: data.notes,
             teamName: data.teamName,
           },
         };

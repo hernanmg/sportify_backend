@@ -337,7 +337,10 @@ export class SportEventsService {
               }),
               location: event.location || 'Por definir',
               duration: event.durationMinutes ? `${event.durationMinutes} minutos` : 'Por definir',
-            }
+              description: event.description?.trim() || undefined,
+              notes: event.notes?.trim() || undefined,
+            },
+            [event.createdBy],
           );
           console.log(`✅ Training reminder sent for event ${event.id}`);
           break;
@@ -354,7 +357,8 @@ export class SportEventsService {
               }),
               opponent: event.opponentName || 'Por definir',
               location: event.location || 'Por definir',
-            }
+            },
+            [event.createdBy],
           );
           break;
 
@@ -367,7 +371,8 @@ export class SportEventsService {
               date: event.eventDate.toISOString(),
               location: event.location || 'Por definir',
               hasExpenses: event.hasExpenses,
-            }
+            },
+            [event.createdBy],
           );
           break;
       }

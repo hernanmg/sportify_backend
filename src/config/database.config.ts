@@ -15,7 +15,10 @@ export const databaseConfig = (configService: ConfigService): TypeOrmModuleOptio
     database: configService.get('DB_NAME', 'sportify_amateur'),
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     synchronize: true,
-    logging: ['query', 'error', 'schema', 'warn'],
+    logging:
+      configService.get('DB_LOGGING', 'false') === 'true'
+        ? ['query', 'error', 'schema', 'warn']
+        : ['error'],
     ssl: false,
     retryAttempts: 3,
     retryDelay: 3000,

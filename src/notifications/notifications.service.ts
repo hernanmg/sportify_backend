@@ -170,8 +170,12 @@ export class NotificationsService {
   // MÉTODOS ESPECÍFICOS PARA GESTIÓN DEPORTIVA
 
   // Convocatoria a partido oficial (solo jugadores con cuotas al día)
-  async sendMatchInvitation(eventId: number, teamId: number, matchDetails: any): Promise<Notification[]> {
-    // Obtener jugadores habilitados del equipo
+  async sendMatchInvitation(
+    eventId: number,
+    teamId: number,
+    matchDetails: any,
+    additionalUserIds: number[] = [],
+  ): Promise<Notification[]> {
     const enabledPlayers = await this.rosterRepository.find({
       where: { 
         teamId, 
@@ -181,9 +185,11 @@ export class NotificationsService {
       relations: ['player', 'player.user'],
     });
 
-    const userIds = enabledPlayers
+    const rosterUserIds = enabledPlayers
       .map(roster => roster.player?.user?.id)
-      .filter(id => id !== undefined);
+      .filter((id): id is number => id !== undefined);
+
+    const userIds = [...new Set([...rosterUserIds, ...additionalUserIds])];
 
     if (userIds.length === 0) {
       return [];
@@ -207,22 +213,46 @@ export class NotificationsService {
   }
 
   // Recordatorio de entrenamiento
-  async sendTrainingReminder(eventId: number, teamId: number, trainingDetails: any): Promise<Notification[]> {
+  async sendTrainingReminder(
+    eventId: number,
+    teamId: number,
+    trainingDetails: any,
+    additionalUserIds: number[] = [],
+  ): Promise<Notification[]> {
     const teamPlayers = await this.rosterRepository.find({
       where: { teamId, isEnabled: true },
       relations: ['player', 'player.user'],
     });
 
-    const userIds = teamPlayers
+    const rosterUserIds = teamPlayers
       .map(roster => roster.player?.user?.id)
-      .filter(id => id !== undefined);
+      .filter((id): id is number => id !== undefined);
+
+    const userIds = [...new Set([...rosterUserIds, ...additionalUserIds])];
 
     if (userIds.length === 0) {
+      console.log(`⚠️ Sin destinatarios para recordatorio de entrenamiento (evento ${eventId}, equipo ${teamId})`);
+      return [];
+    }
+
+    const alreadyNotified = await this.notificationRepository.find({
+      where: {
+        sportEventId: eventId,
+        type: NotificationType.TRAINING_REMINDER,
+        userId: In(userIds),
+      },
+      select: ['userId'],
+    });
+    const notifiedIds = new Set(alreadyNotified.map((n) => n.userId));
+    const pendingUserIds = userIds.filter((id) => !notifiedIds.has(id));
+
+    if (pendingUserIds.length === 0) {
+      console.log(`ℹ️ Recordatorio de entrenamiento ya enviado para evento ${eventId}`);
       return [];
     }
 
     return await this.createBulkNotifications({
-      userIds,
+      userIds: pendingUserIds,
       teamId,
       sportEventId: eventId, // eventId es en realidad sportEventId
       type: NotificationType.TRAINING_REMINDER,
@@ -230,9 +260,13 @@ export class NotificationsService {
       title: '🏃‍♂️ Recordatorio de Entrenamiento',
       message: `Entrenamiento programado para el ${trainingDetails.date}. ¡No faltes!`,
       data: {
+        eventTitle: trainingDetails.eventTitle,
         trainingDate: trainingDetails.date,
+        date: trainingDetails.date,
         location: trainingDetails.location,
         duration: trainingDetails.duration,
+        description: trainingDetails.description,
+        notes: trainingDetails.notes,
       },
     });
   }
@@ -298,15 +332,22 @@ export class NotificationsService {
   }
 
   // Notificación de evento social
-  async sendSocialEventNotification(eventId: number, teamId: number, eventDetails: any): Promise<Notification[]> {
+  async sendSocialEventNotification(
+    eventId: number,
+    teamId: number,
+    eventDetails: any,
+    additionalUserIds: number[] = [],
+  ): Promise<Notification[]> {
     const teamPlayers = await this.rosterRepository.find({
       where: { teamId },
       relations: ['player', 'player.user'],
     });
 
-    const userIds = teamPlayers
+    const rosterUserIds = teamPlayers
       .map(roster => roster.player?.user?.id)
-      .filter(id => id !== undefined);
+      .filter((id): id is number => id !== undefined);
+
+    const userIds = [...new Set([...rosterUserIds, ...additionalUserIds])];
 
     if (userIds.length === 0) {
       return [];
@@ -369,18 +410,30 @@ export class NotificationsService {
       let emailSent = false;
       let pushSent = false;
 
-      // 1. Enviar email si el usuario tiene email
-      if (user.email && user.emailVerified) {
+      const requireVerifiedEmail =
+        process.env.EMAIL_REQUIRE_VERIFIED === 'true';
+      const canSendEmail =
+        !!user.email &&
+        (!requireVerifiedEmail || user.emailVerified);
+
+      if (canSendEmail) {
         try {
           emailSent = await this.emailService.sendNotificationEmail(
             user.email,
             notification.type,
-            notificationData
+            notificationData,
           );
           console.log(`📧 Email ${emailSent ? 'enviado' : 'falló'} a ${user.email}`);
         } catch (error) {
           console.error(`❌ Error enviando email a ${user.email}:`, error);
         }
+      } else if (!user.email) {
+        console.log(`📧 Email omitido: usuario ${user.id} sin email`);
+      } else {
+        console.log(
+          `📧 Email omitido: usuario ${user.id} (${user.email}) sin verificar. ` +
+            `Seteá EMAIL_REQUIRE_VERIFIED=false o verificá el email.`,
+        );
       }
 
       // 2. Enviar push notification
@@ -393,7 +446,7 @@ export class NotificationsService {
           data: notification.data,
         };
         
-        pushSent = await this.pushService.sendPushNotification(pushData);
+        pushSent = await this.pushService.sendPushNotification(pushData, notification);
         console.log(`📱 Push notification ${pushSent ? 'enviada' : 'falló'} a usuario ${notification.userId}`);
       } catch (error) {
         console.error(`❌ Error enviando push notification:`, error);

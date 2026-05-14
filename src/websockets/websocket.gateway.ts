@@ -29,7 +29,8 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
   server: Server;
 
   private readonly logger = new Logger(NotificationGateway.name);
-  private connectedUsers = new Map<number, AuthenticatedSocket[]>(); // userId -> sockets[]
+  private connectedUsers = new Map<number, AuthenticatedSocket[]>();
+  private static readonly MAX_SOCKETS_PER_USER = 3;
 
   constructor(private jwtService: JwtService) {}
 
@@ -50,7 +51,12 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
       client.userRole = payload.role;
       client.teamId = payload.teamId;
 
-      // Registrar conexión
+      const existingSockets = this.connectedUsers.get(client.userId) ?? [];
+      if (existingSockets.length >= NotificationGateway.MAX_SOCKETS_PER_USER) {
+        const oldest = existingSockets.shift();
+        oldest?.disconnect(true);
+      }
+
       if (!this.connectedUsers.has(client.userId)) {
         this.connectedUsers.set(client.userId, []);
       }
@@ -98,7 +104,6 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
   // Método para enviar notificación a usuario específico
   sendNotificationToUser(userId: number, notification: any) {
     this.server.to(`user_${userId}`).emit('notification', notification);
-    this.logger.log(`📱 Notificación enviada a usuario ${userId}: ${notification.title}`);
   }
 
   // Método para enviar notificación a equipo

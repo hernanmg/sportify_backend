@@ -45,8 +45,8 @@ export class CategoriesController {
   @Post('seed/football')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('super_admin', 'manager')
-  seedFootballCategories() {
-    return this.categoriesService.seedFootballCategories();
+  seedFootballCategories(@Body() body?: { sportId?: number }) {
+    return this.categoriesService.seedFootballCategories(body?.sportId);
   }
 
   @Get(':id')

@@ -30,6 +30,12 @@
                 <li><strong>Fecha:</strong> {{date}}</li>
                 <li><strong>Ubicación:</strong> {{location}}</li>
                 <li><strong>Duración:</strong> {{duration}}</li>
+                {{#if description}}
+                <li><strong>Descripción:</strong> {{description}}</li>
+                {{/if}}
+                {{#if notes}}
+                <li><strong>Notas:</strong> {{notes}}</li>
+                {{/if}}
             </ul>
         </div>
         
