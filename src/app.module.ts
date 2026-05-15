@@ -21,6 +21,7 @@ import { databaseConfig } from './config/database.config';
 import { WebSocketsModule } from './websockets/websockets.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { EmailModule } from './email/email.module';
+import { FinanceModule } from './finance/finance.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { EmailModule } from './email/email.module';
     WebSocketsModule,
     SchedulerModule,
     EmailModule,
+    FinanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
