@@ -35,6 +35,29 @@ export class UsersService {
     }
   }
 
+  /** Usuarios vinculados al equipo (plantel, fichajes o membresía). */
+  async findUsersForTeam(teamId: number): Promise<User[]> {
+    return await this.userRepository
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.userRoles', 'ur')
+      .leftJoinAndSelect('ur.role', 'role')
+      .where('u.deletedAt IS NULL')
+      .andWhere(
+        `(
+          EXISTS (SELECT 1 FROM players p WHERE p.user_id = u.id AND p.team_id = :teamId)
+          OR EXISTS (SELECT 1 FROM team_members tm WHERE tm.user_id = u.id AND tm.team_id = :teamId)
+          OR EXISTS (
+            SELECT 1 FROM player_roster pr
+            INNER JOIN players pl ON pl.id = pr.player_id AND pl.user_id = u.id
+            WHERE pr.team_id = :teamId
+          )
+        )`,
+        { teamId },
+      )
+      .orderBy('u.username', 'ASC')
+      .getMany();
+  }
+
   async findOne(id: number): Promise<User> {
     return await this.userRepository.findOne({
       where: { id, deletedAt: IsNull() }, // Excluir eliminados
@@ -178,18 +201,63 @@ export class UsersService {
       }
     }
 
+    if (payload.estadoRegistro === 'completed') {
+      payload.profileCompletion = 100;
+    }
+
     await this.userRepository.update(userId, payload);
-    
-    // Recalcular completion después de la actualización
+
     const updatedUser = await this.findOne(userId);
-    const completion = this.calculateProfileCompletionInternal(updatedUser);
-    
+    let completion = this.calculateProfileCompletionInternal(updatedUser);
+
+    if (updatedUser.estadoRegistro === 'completed') {
+      completion = 100;
+    }
+
     if (completion !== updatedUser.profileCompletion) {
       await this.userRepository.update(userId, { profileCompletion: completion });
       updatedUser.profileCompletion = completion;
     }
-    
+
     return updatedUser;
+  }
+
+  /** Rol de mayor jerarquía cuando el usuario tiene varios asignados. */
+  getPrimaryRoleName(user: User): string {
+    if (!user.userRoles?.length) {
+      return 'guest';
+    }
+    const hierarchy: Record<string, number> = {
+      super_admin: 100,
+      manager: 80,
+      admin: 75,
+      team_captain: 60,
+      player: 40,
+      guest: 10,
+    };
+    let best = 'guest';
+    let bestScore = 0;
+    for (const ur of user.userRoles) {
+      const name = ur.role?.name;
+      if (!name) continue;
+      const score = hierarchy[name] ?? 0;
+      if (score > bestScore) {
+        bestScore = score;
+        best = name;
+      }
+    }
+    return best;
+  }
+
+  async setPrimaryRole(userId: number, roleName: string): Promise<void> {
+    const role = await this.roleRepository.findOne({ where: { name: roleName } });
+    if (!role) {
+      throw new NotFoundException(`Rol ${roleName} no encontrado`);
+    }
+    await this.userRoleRepository.delete({ userId });
+    await this.userRoleRepository.save(
+      this.userRoleRepository.create({ userId, roleId: role.id }),
+    );
   }
 
   private normalizeBirthDate(value: string): string | null {

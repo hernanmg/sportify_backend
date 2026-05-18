@@ -39,6 +39,11 @@ export class SportsController {
     return this.sportsService.seedDefaults();
   }
 
+  @Get(':id/positions')
+  getPositions(@Param('id', ParseIntPipe) id: number) {
+    return this.sportsService.getPositions(id);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.sportsService.findOne(id);

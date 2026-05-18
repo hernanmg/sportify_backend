@@ -6,10 +6,19 @@ import { PlayerRoster } from './entities/player-roster.entity';
 import { Player } from '../players/entities/player.entity';
 import { Team } from '../teams/entities/teams.entity';
 import { User } from '../users/entities/user.entity';
+import { Category } from '../categories/entities/category.entity';
+import { TeamCategory } from '../teams/entities/team-category.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PlayerRoster, Player, Team, User])
+    TypeOrmModule.forFeature([
+      PlayerRoster,
+      Player,
+      Team,
+      User,
+      Category,
+      TeamCategory,
+    ]),
   ],
   controllers: [RosterController],
   providers: [RosterService],

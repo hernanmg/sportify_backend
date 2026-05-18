@@ -42,6 +42,10 @@ export class CreateRosterDto {
   @IsString()
   season: string;
 
+  @IsOptional()
+  @IsNumber()
+  categoryId?: number;
+
   @IsNotEmpty()
   @IsString()
   category: string;

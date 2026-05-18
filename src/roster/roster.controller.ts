@@ -24,35 +24,39 @@ export class RosterController {
   constructor(private readonly rosterService: RosterService) {}
 
   @Post()
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain')
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createRosterDto: CreateRosterDto) {
     return await this.rosterService.create(createRosterDto);
   }
 
   @Get()
-  @Roles('super_admin', 'manager', 'team_captain', 'player')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'player')
   async findAll() {
     return await this.rosterService.findAll();
   }
 
   @Get('team/:teamId')
-  @Roles('super_admin', 'manager', 'team_captain', 'player')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'player')
   async findByTeam(
     @Param('teamId') teamId: number,
-    @Query('season') season?: string
+    @Query('season') season?: string,
+    @Query('categoryIds') categoryIdsRaw?: string,
   ) {
-    return await this.rosterService.findByTeam(teamId, season);
+    const categoryIds = categoryIdsRaw
+      ? categoryIdsRaw.split(',').map((id) => parseInt(id.trim(), 10)).filter((id) => !Number.isNaN(id))
+      : undefined;
+    return await this.rosterService.findByTeam(teamId, season, categoryIds);
   }
 
   @Get('season/:season')
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin')
   async findBySeason(@Param('season') season: string) {
     return await this.rosterService.findBySeason(season);
   }
 
   @Get('team/:teamId/enabled')
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain')
   async getEnabledPlayersByTeam(
     @Param('teamId') teamId: number,
     @Query('season') season: string
@@ -61,7 +65,7 @@ export class RosterController {
   }
 
   @Get('team/:teamId/available-numbers')
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain')
   async getAvailableJerseyNumbers(
     @Param('teamId') teamId: number,
     @Query('season') season: string
@@ -70,13 +74,13 @@ export class RosterController {
   }
 
   @Get(':id')
-  @Roles('super_admin', 'manager', 'team_captain', 'player')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'player')
   async findOne(@Param('id') id: number) {
     return await this.rosterService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain')
   async update(
     @Param('id') id: number,
     @Body() updateRosterDto: UpdateRosterDto
@@ -85,7 +89,7 @@ export class RosterController {
   }
 
   @Patch(':id/medical-status')
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain')
   async updateMedicalStatus(
     @Param('id') id: number,
     @Body() body: { status: 'pending' | 'approved' | 'expired' | 'rejected' }
@@ -94,7 +98,7 @@ export class RosterController {
   }
 
   @Delete(':id')
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: number) {
     await this.rosterService.remove(id);

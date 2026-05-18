@@ -25,6 +25,8 @@ export enum NotificationType {
   EVENT_RESCHEDULED = 'event_rescheduled',
   EVENT_COMPLETED = 'event_completed',
   EVENT_STARTED = 'event_started',
+  IMPEDIMENT_CLEARED = 'impediment_cleared',
+  PLAYER_ELIGIBLE = 'player_eligible',
 }
 
 export enum NotificationPriority {

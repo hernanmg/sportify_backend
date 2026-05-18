@@ -46,4 +46,8 @@ export class UpdateProfileDto {
   @Min(0)
   @Max(100)
   profileCompletion?: number;
+
+  @IsOptional()
+  @IsString()
+  estadoRegistro?: string;
 }

@@ -33,6 +33,10 @@ export class CreateSportEventDto {
   @IsString()
   location?: string;
 
+  @IsOptional()
+  @IsString()
+  courtNumber?: string;
+
   @IsNotEmpty()
   @IsNumber()
   teamId: number;
@@ -89,10 +93,15 @@ export class CreateSportEventDto {
   @IsOptional()
   metadata?: any;
 
-  // Lista de participantes a invitar
+  // Lista de participantes a invitar (userId)
   @IsOptional()
   @IsArray()
   participantIds?: number[];
+
+  /** Filtrar auto-invitación por categorías del equipo (eventos sociales). */
+  @IsOptional()
+  @IsArray()
+  categoryIds?: number[];
 
   // Configuración de comportamiento
   @IsOptional()
@@ -130,6 +139,10 @@ export class UpdateSportEventDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsString()
+  courtNumber?: string;
 
   @IsOptional()
   @IsString()

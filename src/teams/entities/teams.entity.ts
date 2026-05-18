@@ -12,6 +12,7 @@ import { Match } from 'src/matches/entities/match.entity';
 import { Sport } from 'src/sports/entities/sport.entity';
 import { PlayerTeam } from 'src/player-teams/entities/player-team.entity';
 import { Category } from 'src/categories/entities/category.entity';
+import { TeamCategory } from './team-category.entity';
 
 @Entity('teams')
 export class Team {
@@ -28,12 +29,17 @@ export class Team {
   @JoinColumn({ name: 'sport_id' })
   sport: Sport;
 
+  /** @deprecated Usar teamCategories. Se mantiene por compatibilidad. */
   @Column({ name: 'category_id', type: 'int', nullable: true })
   categoryId?: number;
 
+  /** @deprecated Usar teamCategories */
   @ManyToOne(() => Category, { nullable: true })
   @JoinColumn({ name: 'category_id' })
   category?: Category;
+
+  @OneToMany(() => TeamCategory, (tc) => tc.team)
+  teamCategories: TeamCategory[];
 
   @Column({ name: 'description', type: 'text', nullable: true })
   description?: string;

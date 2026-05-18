@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Sport } from './entities/sport.entity';
+import { SportPosition } from './entities/sport-position.entity';
 import { CreateSportDto } from './dtos/create-sport.dto';
 import { UpdateSportDto } from './dtos/update-sport.dto';
 
@@ -14,6 +15,8 @@ export class SportsService {
   constructor(
     @InjectRepository(Sport)
     private readonly sportRepository: Repository<Sport>,
+    @InjectRepository(SportPosition)
+    private readonly positionRepository: Repository<SportPosition>,
   ) {}
 
   async create(createSportDto: CreateSportDto): Promise<Sport> {
@@ -81,5 +84,28 @@ export class SportsService {
     }
 
     return created;
+  }
+
+  async getPositions(sportId: number): Promise<SportPosition[]> {
+    await this.findOne(sportId);
+    const rows = await this.positionRepository.find({
+      where: { sportId },
+      order: { sortOrder: 'ASC', label: 'ASC' },
+    });
+    if (rows.length > 0) return rows;
+    return this.positionRepository.find({
+      where: { sportId: -1 },
+    });
+  }
+
+  async getPositionsForTeam(teamSportId: number): Promise<SportPosition[]> {
+    const rows = await this.positionRepository.find({
+      where: { sportId: teamSportId },
+      order: { sortOrder: 'ASC' },
+    });
+    if (rows.length > 0) return rows;
+    return [
+      { id: 0, sportId: teamSportId, code: 'player', label: 'Jugador', sortOrder: 99 } as SportPosition,
+    ];
   }
 }

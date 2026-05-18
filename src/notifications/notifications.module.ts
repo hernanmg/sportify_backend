@@ -5,13 +5,14 @@ import { NotificationsController } from './notifications.controller';
 import { Notification } from './entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { PlayerRoster } from '../roster/entities/player-roster.entity';
+import { DeviceToken } from '../devices/entities/device-token.entity';
 import { EmailModule } from '../email/email.module';
 import { PushService } from '../push/push.service';
 import { WebSocketsModule } from '../websockets/websockets.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, User, PlayerRoster]),
+    TypeOrmModule.forFeature([Notification, User, PlayerRoster, DeviceToken]),
     EmailModule,
     forwardRef(() => WebSocketsModule),
   ],

@@ -1,4 +1,5 @@
 import { Sport } from 'src/sports/entities/sport.entity';
+import { TeamCategory } from '../../teams/entities/team-category.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -57,7 +58,6 @@ export class Category {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  // Relaciones futuras con equipos/jugadores
-  // @OneToMany(() => Team, (team) => team.category)
-  // teams: Team[];
+  @OneToMany(() => TeamCategory, (tc) => tc.category)
+  teamCategories: TeamCategory[];
 }

@@ -15,20 +15,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: any) {
     try {
-      // payload contiene: { sub: userId, userName, role, iat, exp }
       const user = await this.usersService.findOne(payload.sub);
-      
+
       if (!user || !user.isActive) {
         throw new UnauthorizedException('Usuario no encontrado o inactivo');
       }
 
-      // Esto se asigna a req.user en los controllers
+      const resolvedRole = this.usersService.getPrimaryRoleName(user);
+
       return {
         id: user.id,
         username: user.username,
         email: user.email,
-        role: payload.role,
-        ...user, // Incluir todos los datos del usuario
+        role: resolvedRole,
+        userRoles: user.userRoles ?? [],
       };
     } catch (error) {
       throw new UnauthorizedException('Token inválido');

@@ -22,6 +22,8 @@ import { WebSocketsModule } from './websockets/websockets.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { EmailModule } from './email/email.module';
 import { FinanceModule } from './finance/finance.module';
+import { PlayerStatusModule } from './player-status/player-status.module';
+import { DevicesModule } from './devices/devices.module';
 
 @Module({
   imports: [
@@ -52,6 +54,8 @@ import { FinanceModule } from './finance/finance.module';
     SchedulerModule,
     EmailModule,
     FinanceModule,
+    PlayerStatusModule,
+    DevicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

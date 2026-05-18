@@ -1,12 +1,14 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not } from 'typeorm';
+import { Repository, Not, In } from 'typeorm';
 import { PlayerRoster } from './entities/player-roster.entity';
 import { CreateRosterDto } from './dtos/create-roster.dto';
 import { UpdateRosterDto } from './dtos/update-roster.dto';
 import { Player } from '../players/entities/player.entity';
 import { Team } from '../teams/entities/teams.entity';
 import { User } from '../users/entities/user.entity';
+import { Category } from '../categories/entities/category.entity';
+import { TeamCategory } from '../teams/entities/team-category.entity';
 
 @Injectable()
 export class RosterService {
@@ -19,7 +21,70 @@ export class RosterService {
     private readonly teamRepository: Repository<Team>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Category)
+    private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(TeamCategory)
+    private readonly teamCategoryRepository: Repository<TeamCategory>,
   ) {}
+
+  private async resolveCategoryForTeam(
+    teamId: number,
+    categoryLabel: string,
+    categoryId?: number,
+  ): Promise<{ categoryId: number; categoryName: string }> {
+    const team = await this.teamRepository.findOne({
+      where: { id: teamId },
+      relations: ['sport', 'teamCategories', 'teamCategories.category'],
+    });
+    if (!team) {
+      throw new NotFoundException(`Equipo con ID ${teamId} no encontrado`);
+    }
+
+    if (categoryId) {
+      const cat = await this.categoryRepository.findOne({
+        where: { id: categoryId, sportId: team.sport_id },
+      });
+      if (!cat) {
+        throw new BadRequestException(
+          'La categoría no pertenece al deporte del equipo',
+        );
+      }
+      const link = await this.teamCategoryRepository.findOne({
+        where: { teamId, categoryId: cat.id },
+      });
+      if (!link) {
+        await this.teamCategoryRepository.save(
+          this.teamCategoryRepository.create({ teamId, categoryId: cat.id }),
+        );
+      }
+      return { categoryId: cat.id, categoryName: cat.name };
+    }
+
+    const normalized = categoryLabel.trim();
+    let cat = await this.categoryRepository.findOne({
+      where: { sportId: team.sport_id, name: normalized },
+    });
+    if (!cat) {
+      cat = await this.categoryRepository.save(
+        this.categoryRepository.create({
+          name: normalized,
+          sportId: team.sport_id,
+          isActive: true,
+        }),
+      );
+    }
+
+    const linkExists = await this.teamCategoryRepository.findOne({
+      where: { teamId, categoryId: cat.id },
+    });
+    if (!linkExists) {
+      await this.teamCategoryRepository.save(
+        this.teamCategoryRepository.create({ teamId, categoryId: cat.id }),
+      );
+    }
+
+    return { categoryId: cat.id, categoryName: cat.name };
+  }
 
   async create(createRosterDto: CreateRosterDto): Promise<PlayerRoster> {
     // Verificar que el jugador existe, si no existe, crearlo
@@ -54,32 +119,45 @@ export class RosterService {
       throw new NotFoundException(`Equipo con ID ${createRosterDto.teamId} no encontrado`);
     }
 
-    // Verificar que el número de camiseta no esté ocupado en esa temporada
+    const playerId = player.id;
+
+    // Dorsal único por equipo/temporada, salvo otra fila del mismo jugador (multi-categoría)
     const existingJersey = await this.rosterRepository.findOne({
       where: {
         teamId: createRosterDto.teamId,
         jerseyNumber: createRosterDto.jerseyNumber,
-        season: createRosterDto.season
-      }
+        season: createRosterDto.season,
+      },
     });
-    if (existingJersey) {
-      throw new ConflictException(`El número ${createRosterDto.jerseyNumber} ya está ocupado en la temporada ${createRosterDto.season}`);
+    if (existingJersey && existingJersey.playerId !== playerId) {
+      throw new ConflictException(
+        `El número ${createRosterDto.jerseyNumber} ya está ocupado en la temporada ${createRosterDto.season}`,
+      );
     }
 
-    // Verificar que el jugador no esté ya registrado en esa temporada para ese equipo
+    // Verificar que el jugador no esté ya en esa categoría/temporada/equipo
+    const { categoryId, categoryName } = await this.resolveCategoryForTeam(
+      createRosterDto.teamId,
+      createRosterDto.category,
+      createRosterDto.categoryId,
+    );
+
     const existingPlayer = await this.rosterRepository.findOne({
       where: {
-        playerId: createRosterDto.playerId,
+        playerId,
         teamId: createRosterDto.teamId,
-        season: createRosterDto.season
-      }
+        season: createRosterDto.season,
+        categoryId,
+      },
     });
     if (existingPlayer) {
-      throw new ConflictException(`El jugador ya está registrado en la temporada ${createRosterDto.season}`);
+      throw new ConflictException(
+        `El jugador ya está registrado en ${categoryName} para la temporada ${createRosterDto.season}`,
+      );
     }
 
     const roster = this.rosterRepository.create({
-      playerId: createRosterDto.playerId,
+      playerId,
       player,
       teamId: createRosterDto.teamId,
       team,
@@ -91,7 +169,8 @@ export class RosterService {
       documentNumber: createRosterDto.documentNumber,
       emergencyContact: createRosterDto.emergencyContact,
       season: createRosterDto.season,
-      category: createRosterDto.category,
+      categoryId,
+      category: categoryName,
       medicalStatus: createRosterDto.medicalStatus ?? 'pending',
       notes: createRosterDto.notes,
     });
@@ -102,7 +181,7 @@ export class RosterService {
   async findAll(): Promise<PlayerRoster[]> {
     try {
       const rosters = await this.rosterRepository.find({
-        relations: ['player', 'player.user', 'team'],
+        relations: ['player', 'player.user', 'team', 'categoryRef'],
         order: { jerseyNumber: 'ASC' }
       });
       console.log('Rosters found:', rosters.length);
@@ -113,16 +192,23 @@ export class RosterService {
     }
   }
 
-  async findByTeam(teamId: number, season?: string): Promise<PlayerRoster[]> {
+  async findByTeam(
+    teamId: number,
+    season?: string,
+    categoryIds?: number[],
+  ): Promise<PlayerRoster[]> {
     try {
-      const whereCondition: any = { teamId };
+      const whereCondition: Record<string, unknown> = { teamId };
       if (season) {
         whereCondition.season = season;
+      }
+      if (categoryIds?.length) {
+        whereCondition.categoryId = In(categoryIds);
       }
 
       const rosters = await this.rosterRepository.find({
         where: whereCondition,
-        relations: ['player', 'player.user', 'team'],
+        relations: ['player', 'player.user', 'team', 'categoryRef'],
         order: { jerseyNumber: 'ASC' }
       });
       return rosters || [];

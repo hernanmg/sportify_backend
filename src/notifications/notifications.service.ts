@@ -195,19 +195,55 @@ export class NotificationsService {
       return [];
     }
 
+    const isOfficial = matchDetails.isOfficial !== false;
     return await this.createBulkNotifications({
       userIds,
       teamId,
-      sportEventId: eventId, // eventId es en realidad sportEventId
+      sportEventId: eventId,
       type: NotificationType.MATCH_INVITATION,
       priority: NotificationPriority.HIGH,
-      title: '⚽ Convocatoria a Partido Oficial',
-      message: `Has sido convocado para el partido del ${matchDetails.date}. Confirma tu asistencia.`,
+      title: isOfficial
+        ? '⚽ Convocatoria — partido oficial'
+        : '⚽ Convocatoria — partido amistoso',
+      message: `Partido vs ${matchDetails.opponent ?? 'rival'} · ${matchDetails.location ?? ''}. Confirmá tu asistencia.`,
       data: {
+        action: 'convocation_response',
+        sportEventId: eventId,
+        teamId,
         matchDate: matchDetails.date,
         opponent: matchDetails.opponent,
         location: matchDetails.location,
-        requiresPayment: true,
+        courtNumber: matchDetails.courtNumber,
+        squadSummary: matchDetails.squadSummary,
+        deepLink: `/convocations/${eventId}`,
+      },
+    });
+  }
+
+  async sendImpedimentCleared(
+    userId: number,
+    teamId: number,
+    payload: {
+      playerName?: string;
+      reason?: string;
+      impedimentType?: string;
+    },
+  ): Promise<Notification | null> {
+    return this.createNotification({
+      userId,
+      teamId,
+      type: NotificationType.IMPEDIMENT_CLEARED,
+      priority: NotificationPriority.MEDIUM,
+      title: '✅ Alta médica / habilitado',
+      message:
+        payload.reason ??
+        'Ya podés ser convocado: tu impedimento fue dado de alta.',
+      data: {
+        action: 'open_player_status',
+        teamId,
+        playerName: payload.playerName,
+        impedimentType: payload.impedimentType,
+        deepLink: '/sports/roster',
       },
     });
   }

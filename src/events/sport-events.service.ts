@@ -4,9 +4,14 @@ import { Repository, Between, In } from 'typeorm';
 import { SportEvent, SportEventType, SportEventStatus } from './entities/sport-event.entity';
 import { EventParticipant, ParticipantStatus, ParticipantRole } from './entities/event-participant.entity';
 import { CreateSportEventDto, UpdateSportEventDto, AddParticipantDto, UpdateParticipantResponseDto } from './dtos/create-sport-event.dto';
+import { AddSocialGuestDto } from './dtos/add-social-guest.dto';
 import { PlayerRoster } from '../roster/entities/player-roster.entity';
+import { Player } from '../players/entities/player.entity';
 import { User } from '../users/entities/user.entity';
 import { Team } from '../teams/entities/teams.entity';
+import { TeamSocialGuest } from './entities/team-social-guest.entity';
+import { UserRole } from '../users-roles/entities/userRole.entity';
+import { Role } from '../roles/entities/role.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EventStateService } from './event-state.service';
 
@@ -19,10 +24,18 @@ export class SportEventsService {
     private readonly participantRepository: Repository<EventParticipant>,
     @InjectRepository(PlayerRoster)
     private readonly rosterRepository: Repository<PlayerRoster>,
+    @InjectRepository(Player)
+    private readonly playerRepository: Repository<Player>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(Team)
     private readonly teamRepository: Repository<Team>,
+    @InjectRepository(TeamSocialGuest)
+    private readonly teamSocialGuestRepository: Repository<TeamSocialGuest>,
+    @InjectRepository(UserRole)
+    private readonly userRoleRepository: Repository<UserRole>,
+    @InjectRepository(Role)
+    private readonly roleRepository: Repository<Role>,
     private readonly notificationsService: NotificationsService,
     private readonly eventStateService: EventStateService,
   ) {}
@@ -56,12 +69,13 @@ export class SportEventsService {
 
     const savedEvent = await this.sportEventRepository.save(sportEvent);
 
-    // Si se proporcionaron participantes, agregarlos
-    if (createSportEventDto.participantIds && createSportEventDto.participantIds.length > 0) {
+    if (createSportEventDto.participantIds?.length) {
       await this.addParticipants(savedEvent.id, createSportEventDto.participantIds);
     } else if (createSportEventDto.autoInviteParticipants !== false) {
-      // Auto-invitar jugadores según el tipo de evento (por defecto true)
-      await this.autoInviteParticipants(savedEvent);
+      await this.autoInviteParticipants(
+        savedEvent,
+        createSportEventDto.categoryIds,
+      );
     }
 
     // Enviar notificaciones según el tipo de evento (solo si está habilitado)
@@ -167,20 +181,37 @@ export class SportEventsService {
       throw new BadRequestException('Se ha alcanzado el límite máximo de participantes');
     }
 
-    // Para partidos oficiales, verificar que el jugador esté habilitado
-    if (event.type === SportEventType.MATCH && event.isOfficialMatch && event.requiresPaymentUpToDate) {
-      const roster = await this.rosterRepository.findOne({
-        where: {
-          playerId: addParticipantDto.userId,
-          teamId: event.teamId,
-          isEnabled: true,
-          medicalStatus: 'approved'
+    // Eventos sociales: permitir invitar usuarios fuera del roster
+    if (event.type !== SportEventType.SOCIAL) {
+      if (
+        event.type === SportEventType.MATCH &&
+        event.isOfficialMatch &&
+        event.requiresPaymentUpToDate
+      ) {
+        const player = await this.playerRepository.findOne({
+          where: { user_id: addParticipantDto.userId },
+        });
+        if (!player) {
+          throw new ForbiddenException('El jugador no está registrado en el equipo');
         }
-      });
-      if (!roster) {
-        throw new ForbiddenException('El jugador no está habilitado para partidos oficiales');
+        const roster = await this.rosterRepository.findOne({
+          where: {
+            playerId: player.id,
+            teamId: event.teamId,
+            isEnabled: true,
+            medicalStatus: 'approved',
+          },
+        });
+        if (!roster) {
+          throw new ForbiddenException(
+            'El jugador no está habilitado para partidos oficiales',
+          );
+        }
       }
     }
+
+    const isSocial = event.type === SportEventType.SOCIAL;
+    const status = ParticipantStatus.PENDING;
 
     const participant = this.participantRepository.create({
       eventId,
@@ -188,7 +219,8 @@ export class SportEventsService {
       role: addParticipantDto.role || ParticipantRole.PLAYER,
       notes: addParticipantDto.notes,
       playingPosition: addParticipantDto.playingPosition,
-      status: ParticipantStatus.PENDING,
+      status,
+      includedInExpenseSplit: isSocial ? false : true,
     });
 
     return await this.participantRepository.save(participant);
@@ -229,6 +261,17 @@ export class SportEventsService {
     participant.notes = updateDto.notes || participant.notes;
     participant.playingPosition = updateDto.playingPosition || participant.playingPosition;
 
+    const event = await this.sportEventRepository.findOne({
+      where: { id: eventId },
+    });
+    if (event?.type === SportEventType.SOCIAL) {
+      if (participant.status === ParticipantStatus.CONFIRMED) {
+        participant.includedInExpenseSplit = true;
+      } else {
+        participant.includedInExpenseSplit = false;
+      }
+    }
+
     return await this.participantRepository.save(participant);
   }
 
@@ -246,7 +289,36 @@ export class SportEventsService {
 
   // MÉTODOS AUXILIARES
 
-  private async autoInviteParticipants(event: SportEvent): Promise<void> {
+  private async resolveEligibleUserIds(
+    teamId: number,
+    categoryIds?: number[],
+    onlyEnabled = false,
+    medicalApproved = false,
+  ): Promise<number[]> {
+    const where: Record<string, unknown> = { teamId };
+    if (onlyEnabled) where.isEnabled = true;
+    if (medicalApproved) where.medicalStatus = 'approved';
+    if (categoryIds?.length) {
+      where.categoryId = In(categoryIds);
+    }
+
+    const roster = await this.rosterRepository.find({
+      where,
+      relations: ['player', 'player.user'],
+    });
+
+    const userIds = new Set<number>();
+    for (const row of roster) {
+      const uid = row.player?.user?.id;
+      if (uid) userIds.add(uid);
+    }
+    return Array.from(userIds);
+  }
+
+  private async autoInviteParticipants(
+    event: SportEvent,
+    categoryIds?: number[],
+  ): Promise<void> {
     let eligibleUsers: number[] = [];
     console.log(`🔍 Auto-inviting participants for event ${event.id}, team ${event.teamId}, type ${event.type}`);
 
@@ -299,14 +371,10 @@ export class SportEventsService {
         break;
 
       case SportEventType.SOCIAL:
-        // Invitar a todos los jugadores del equipo
-        const socialRoster = await this.rosterRepository.find({
-          where: { teamId: event.teamId },
-          relations: ['player', 'player.user']
-        });
-        eligibleUsers = socialRoster
-          .map(r => r.player?.user?.id)
-          .filter(id => id !== undefined);
+        eligibleUsers = await this.resolveEligibleUserIds(
+          event.teamId,
+          categoryIds?.length ? categoryIds : undefined,
+        );
         break;
     }
 
@@ -414,12 +482,162 @@ export class SportEventsService {
     });
   }
 
-  async getUserEvents(userId: number): Promise<SportEvent[]> {
+  async getUserEvents(userId: number) {
     const participants = await this.participantRepository.find({
       where: { userId },
-      relations: ['event', 'event.team']
+      relations: ['event', 'event.team', 'event.participants', 'event.participants.user'],
+      order: { event: { eventDate: 'ASC' } },
     });
 
-    return participants.map(p => p.event);
+    return participants.map((p) => ({
+      ...p.event,
+      myParticipation: {
+        status: p.status,
+        includedInExpenseSplit: p.includedInExpenseSplit !== false,
+        responseDate: p.responseDate,
+      },
+    }));
+  }
+
+  async listTeamSocialGuests(teamId: number) {
+    const guests = await this.teamSocialGuestRepository.find({
+      where: { teamId },
+      relations: ['user'],
+      order: { displayName: 'ASC' },
+    });
+    return guests.map((g) => ({
+      id: g.id,
+      teamId: g.teamId,
+      displayName: g.displayName,
+      phone: g.phone,
+      email: g.email,
+      userId: g.userId,
+    }));
+  }
+
+  async addSocialGuestParticipant(
+    eventId: number,
+    dto: AddSocialGuestDto,
+    createdBy: number,
+  ): Promise<EventParticipant> {
+    const event = await this.findOne(eventId);
+    if (event.type !== SportEventType.SOCIAL) {
+      throw new BadRequestException(
+        'Solo se pueden agregar invitados externos a eventos sociales',
+      );
+    }
+
+    const displayName = dto.displayName.trim();
+    const phone = dto.phone?.trim() || undefined;
+    const email = dto.email?.trim().toLowerCase() || undefined;
+
+    let guest: TeamSocialGuest | null = null;
+    if (phone) {
+      guest = await this.teamSocialGuestRepository.findOne({
+        where: { teamId: event.teamId, phone },
+      });
+    }
+    if (!guest) {
+      guest = await this.teamSocialGuestRepository.findOne({
+        where: { teamId: event.teamId, displayName },
+      });
+    }
+
+    let userId: number;
+
+    if (guest) {
+      userId = guest.userId;
+      if (phone && !guest.phone) {
+        guest.phone = phone;
+        await this.teamSocialGuestRepository.save(guest);
+      }
+    } else {
+      userId = await this.createShadowGuestUser(
+        event.teamId,
+        displayName,
+        email,
+        phone,
+      );
+      guest = await this.teamSocialGuestRepository.save(
+        this.teamSocialGuestRepository.create({
+          teamId: event.teamId,
+          displayName,
+          phone,
+          email,
+          userId,
+          createdBy,
+        }),
+      );
+    }
+
+    const existing = await this.participantRepository.findOne({
+      where: { eventId, userId },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        `${displayName} ya está en la lista del evento`,
+      );
+    }
+
+    const participant = this.participantRepository.create({
+      eventId,
+      userId,
+      role: ParticipantRole.PLAYER,
+      status: ParticipantStatus.CONFIRMED,
+      includedInExpenseSplit: true,
+      notes: phone ? `Tel: ${phone}` : undefined,
+    });
+
+    return await this.participantRepository.save(participant);
+  }
+
+  private async createShadowGuestUser(
+    teamId: number,
+    displayName: string,
+    email?: string,
+    phone?: string,
+  ): Promise<number> {
+    const parts = displayName.split(/\s+/).filter(Boolean);
+    const firstName = parts[0] ?? displayName;
+    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : undefined;
+    const slug = displayName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .slice(0, 20);
+    const username = `guest_${teamId}_${slug}_${Date.now()}`;
+    const guestEmail =
+      email ||
+      `guest.${teamId}.${Date.now()}@sportify-guest.local`;
+
+    const user = await this.userRepository.save(
+      this.userRepository.create({
+        username,
+        email: guestEmail,
+        firstName,
+        lastName,
+        phone,
+        estadoRegistro: 'social_guest',
+        isActive: true,
+      }),
+    );
+
+    const guestRole = await this.roleRepository.findOne({
+      where: { name: 'guest' },
+    });
+    if (guestRole) {
+      const hasRole = await this.userRoleRepository.findOne({
+        where: { userId: user.id, roleId: guestRole.id },
+      });
+      if (!hasRole) {
+        await this.userRoleRepository.save(
+          this.userRoleRepository.create({
+            userId: user.id,
+            roleId: guestRole.id,
+          }),
+        );
+      }
+    }
+
+    return user.id;
   }
 }

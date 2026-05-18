@@ -134,18 +134,14 @@ export class AuthService {
       };
     }
 
-    // Obtener el primer rol del usuario
-    const userRole = user.userRoles[0];
-    if (!userRole || !userRole.role) {
-      throw new UnauthorizedException('Error en la configuración de roles del usuario');
-    }
+    const roleName = this.userService.getPrimaryRoleName(user);
 
     return {
       id: user.id,
       name: user.username,
       userName: user.username,
       accessToken: '',
-      role: userRole.role.name,
+      role: roleName,
     };
   }
 

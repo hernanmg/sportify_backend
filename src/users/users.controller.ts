@@ -24,9 +24,16 @@ import { ChangePasswordDto } from './dtos/change-password.dto';
 export class UsersController {
   constructor(private readonly userService: UsersService) {}
 
+  @Get('for-team/:teamId')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  async findForTeam(@Param('teamId') teamId: string) {
+    return this.userService.findUsersForTeam(parseInt(teamId, 10));
+  }
+
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('super_admin', 'manager') // Solo super_admin y manager pueden ver la lista de usuarios
+  @Roles('super_admin', 'manager', 'admin', 'team_captain')
   async findAll() {
     return this.userService.findAll();
   }

@@ -80,8 +80,27 @@ export class EventParticipant {
   @Column({ name: 'attended', type: 'boolean', nullable: true })
   attended?: boolean;
 
+  /** Si false, no entra en el reparto de gastos del evento social */
+  @Column({ name: 'included_in_expense_split', type: 'boolean', default: true })
+  includedInExpenseSplit: boolean;
+
   @Column({ name: 'attendance_notes', type: 'text', nullable: true })
   attendanceNotes?: string;
+
+  @Column({ name: 'is_convoked', type: 'boolean', default: true })
+  isConvoked: boolean;
+
+  @Column({ name: 'eligibility_status', type: 'varchar', length: 30, nullable: true })
+  eligibilityStatus?: string;
+
+  @Column({ name: 'eligibility_detail', type: 'text', nullable: true })
+  eligibilityDetail?: string;
+
+  @Column({ name: 'fee_override_by', type: 'int', nullable: true })
+  feeOverrideBy?: number;
+
+  @Column({ name: 'fee_override_at', type: 'timestamp', nullable: true })
+  feeOverrideAt?: Date;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

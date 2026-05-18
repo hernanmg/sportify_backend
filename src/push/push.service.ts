@@ -1,126 +1,134 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { NotificationType, Notification } from '../notifications/entities/notification.entity';
 import { NotificationGateway } from '../websockets/websocket.gateway';
+import { DeviceToken } from '../devices/entities/device-token.entity';
 
 export interface PushNotificationData {
   userId: number;
   title: string;
   body: string;
-  data?: any;
+  data?: Record<string, unknown>;
   type: NotificationType;
-}
-
-export interface DeviceToken {
-  userId: number;
-  token: string;
-  platform: 'ios' | 'android' | 'web';
-  isActive: boolean;
 }
 
 @Injectable()
 export class PushService {
   private readonly logger = new Logger(PushService.name);
-  
-  // En el futuro, aquí se almacenarán los tokens de dispositivos
-  private deviceTokens: Map<number, DeviceToken[]> = new Map();
+  private fcmInitialized = false;
+  private firebaseAdmin: typeof import('firebase-admin') | null = null;
 
   constructor(
     @Inject(forwardRef(() => NotificationGateway))
     private readonly webSocketGateway: NotificationGateway,
-  ) {}
-
-  // Registrar token de dispositivo
-  async registerDeviceToken(userId: number, token: string, platform: 'ios' | 'android' | 'web'): Promise<void> {
-    this.logger.log(`📱 Registrando token para usuario ${userId} (${platform})`);
-    
-    const userTokens = this.deviceTokens.get(userId) || [];
-    
-    // Verificar si el token ya existe
-    const existingToken = userTokens.find(t => t.token === token);
-    if (existingToken) {
-      existingToken.isActive = true;
-      this.logger.log(`✅ Token actualizado para usuario ${userId}`);
-      return;
-    }
-
-    // Agregar nuevo token
-    userTokens.push({
-      userId,
-      token,
-      platform,
-      isActive: true,
-    });
-    
-    this.deviceTokens.set(userId, userTokens);
-    this.logger.log(`✅ Nuevo token registrado para usuario ${userId}`);
+    @InjectRepository(DeviceToken)
+    private readonly deviceTokenRepository: Repository<DeviceToken>,
+  ) {
+    this.initFirebase();
   }
 
-  // Enviar notificación push a un usuario
+  private initFirebase(): void {
+    const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (!json) {
+      this.logger.log('FCM: FIREBASE_SERVICE_ACCOUNT_JSON no configurado');
+      return;
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const admin = require('firebase-admin') as typeof import('firebase-admin');
+      if (!admin.apps.length) {
+        admin.initializeApp({
+          credential: admin.credential.cert(JSON.parse(json)),
+        });
+      }
+      this.firebaseAdmin = admin;
+      this.fcmInitialized = true;
+      this.logger.log('FCM inicializado correctamente');
+    } catch (e) {
+      this.logger.warn(`FCM no disponible: ${e}`);
+    }
+  }
+
+  async registerDeviceToken(
+    userId: number,
+    token: string,
+    platform: 'ios' | 'android' | 'web',
+  ): Promise<void> {
+    let row = await this.deviceTokenRepository.findOne({
+      where: { userId, token },
+    });
+    if (row) {
+      row.isActive = true;
+      row.platform = platform;
+    } else {
+      row = this.deviceTokenRepository.create({
+        userId,
+        token,
+        platform,
+        isActive: true,
+      });
+    }
+    await this.deviceTokenRepository.save(row);
+  }
+
+  async unregisterDeviceToken(userId: number, token: string): Promise<void> {
+    await this.deviceTokenRepository.update(
+      { userId, token },
+      { isActive: false },
+    );
+  }
+
+  private async getActiveTokens(userId: number): Promise<DeviceToken[]> {
+    return this.deviceTokenRepository.find({
+      where: { userId, isActive: true },
+    });
+  }
+
   async sendPushNotification(
     notification: PushNotificationData,
     savedNotification?: Notification,
   ): Promise<boolean> {
     try {
-      this.logger.log(`🔔 Enviando push notification a usuario ${notification.userId}`);
-      
       const realtimePayload = savedNotification
         ? this.buildRealtimePayload(savedNotification)
         : this.buildRealtimePayload(notification);
 
-      const isConnected = this.webSocketGateway.isUserConnected(notification.userId);
+      const isConnected = this.webSocketGateway.isUserConnected(
+        notification.userId,
+      );
       if (isConnected) {
         this.webSocketGateway.sendNotificationToUser(
           notification.userId,
           realtimePayload,
         );
-        this.logger.log(`✅ Notificación WebSocket enviada a usuario ${notification.userId}`);
-      } else {
-        this.logger.log(`📱 Usuario ${notification.userId} no conectado via WebSocket`);
       }
 
-      // 2. Verificar tokens para push nativo (futuro)
-      const userTokens = this.deviceTokens.get(notification.userId);
-      if (!userTokens || userTokens.length === 0) {
-        this.logger.log(`⚠️ No hay tokens push registrados para usuario ${notification.userId}`);
-        return isConnected; // Si se envió via WebSocket, consideramos éxito
+      const tokens = await this.getActiveTokens(notification.userId);
+      if (tokens.length > 0) {
+        await this.sendToFCM(tokens, notification, savedNotification);
       }
 
-      // 3. Envío push nativo (preparado para futuro)
-      this.logger.log(`📤 Push notification preparada:`);
-      this.logger.log(`   Título: ${notification.title}`);
-      this.logger.log(`   Mensaje: ${notification.body}`);
-      this.logger.log(`   Tipo: ${notification.type}`);
-      this.logger.log(`   Tokens activos: ${userTokens.filter(t => t.isActive).length}`);
-
-      // TODO: Implementar envío real con Service Workers
-      // await this.sendToServiceWorker(userTokens, notification);
-
-      return true;
+      return isConnected || tokens.length > 0;
     } catch (error) {
-      this.logger.error(`❌ Error enviando push notification:`, error);
+      this.logger.error(`Error enviando push:`, error);
       return false;
     }
   }
 
-  // Enviar notificaciones push masivas
-  async sendBulkPushNotifications(notifications: PushNotificationData[]): Promise<{ sent: number; failed: number }> {
+  async sendBulkPushNotifications(
+    notifications: PushNotificationData[],
+  ): Promise<{ sent: number; failed: number }> {
     let sent = 0;
     let failed = 0;
-
-    for (const notification of notifications) {
-      const success = await this.sendPushNotification(notification);
-      if (success) {
-        sent++;
-      } else {
-        failed++;
-      }
+    for (const n of notifications) {
+      const ok = await this.sendPushNotification(n);
+      if (ok) sent++;
+      else failed++;
     }
-
-    this.logger.log(`📊 Push notifications - Enviadas: ${sent}, Fallidas: ${failed}`);
     return { sent, failed };
   }
 
-  // Desactivar token de dispositivo
   private buildRealtimePayload(
     notification: PushNotificationData | Notification,
     messageOverride?: string,
@@ -165,54 +173,78 @@ export class PushService {
     };
   }
 
-  async unregisterDeviceToken(userId: number, token: string): Promise<void> {
-    const userTokens = this.deviceTokens.get(userId);
-    if (!userTokens) return;
+  private async sendToFCM(
+    tokens: DeviceToken[],
+    notification: PushNotificationData,
+    saved?: Notification,
+  ): Promise<void> {
+    if (!this.fcmInitialized || !this.firebaseAdmin) return;
 
-    const tokenIndex = userTokens.findIndex(t => t.token === token);
-    if (tokenIndex >= 0) {
-      userTokens[tokenIndex].isActive = false;
-      this.logger.log(`🔕 Token desactivado para usuario ${userId}`);
+    const active = tokens.filter((t) => t.isActive).map((t) => t.token);
+    if (!active.length) return;
+
+    const data: Record<string, string> = {};
+    const payload = saved?.data ?? notification.data;
+    if (payload && typeof payload === 'object') {
+      for (const [k, v] of Object.entries(payload)) {
+        data[k] = v == null ? '' : String(v);
+      }
+    }
+    if (saved?.sportEventId) {
+      data.sportEventId = String(saved.sportEventId);
+    }
+    data.type = notification.type;
+    data.action = this.actionForType(notification.type);
+
+    try {
+      const messaging = this.firebaseAdmin.messaging();
+      const response = await messaging.sendEachForMulticast({
+        tokens: active,
+        notification: {
+          title: notification.title,
+          body: notification.body,
+        },
+        data,
+        webpush: {
+          fcmOptions: {
+            link: data.deepLink ?? '/notifications',
+          },
+        },
+      });
+      this.logger.log(
+        `FCM: ${response.successCount} ok, ${response.failureCount} fail`,
+      );
+      for (let i = 0; i < response.responses.length; i++) {
+        const r = response.responses[i];
+        if (
+          !r.success &&
+          r.error?.code === 'messaging/registration-token-not-registered'
+        ) {
+          await this.unregisterDeviceToken(tokens[i].userId, tokens[i].token);
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`FCM send error: ${e}`);
     }
   }
 
-  // Obtener estadísticas de tokens
-  getTokenStats(): { totalUsers: number; totalTokens: number; activeTokens: number } {
-    let totalTokens = 0;
-    let activeTokens = 0;
-
-    for (const tokens of this.deviceTokens.values()) {
-      totalTokens += tokens.length;
-      activeTokens += tokens.filter(t => t.isActive).length;
+  private actionForType(type: NotificationType): string {
+    switch (type) {
+      case NotificationType.MATCH_INVITATION:
+        return 'convocation_response';
+      case NotificationType.IMPEDIMENT_CLEARED:
+      case NotificationType.PLAYER_ELIGIBLE:
+        return 'open_player_status';
+      default:
+        return 'open_notifications';
     }
-
-    return {
-      totalUsers: this.deviceTokens.size,
-      totalTokens,
-      activeTokens,
-    };
   }
 
-  // Método privado para envío real con FCM (para implementar en el futuro)
-  private async sendToFCM(tokens: DeviceToken[], notification: PushNotificationData): Promise<void> {
-    // TODO: Implementar integración con Firebase Cloud Messaging
-    // 
-    // Ejemplo de implementación futura:
-    // 
-    // const admin = require('firebase-admin');
-    // 
-    // const message = {
-    //   notification: {
-    //     title: notification.title,
-    //     body: notification.body,
-    //   },
-    //   data: notification.data || {},
-    //   tokens: tokens.filter(t => t.isActive).map(t => t.token),
-    // };
-    // 
-    // const response = await admin.messaging().sendMulticast(message);
-    // this.logger.log(`FCM Response: ${response.successCount} success, ${response.failureCount} failures`);
-    
-    this.logger.log('🚧 FCM integration pendiente de implementación');
+  getTokenStats(): {
+    totalUsers: number;
+    totalTokens: number;
+    activeTokens: number;
+  } {
+    return { totalUsers: 0, totalTokens: 0, activeTokens: 0 };
   }
 }

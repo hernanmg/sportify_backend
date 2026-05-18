@@ -12,9 +12,11 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import { SportEventsService } from './sport-events.service';
 import { CreateSportEventDto, UpdateSportEventDto, AddParticipantDto, UpdateParticipantResponseDto } from './dtos/create-sport-event.dto';
+import { AddSocialGuestDto } from './dtos/add-social-guest.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -27,7 +29,7 @@ export class SportEventsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'team_captain', 'admin')
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createSportEventDto: CreateSportEventDto, @Request() req) {
     // Asignar el usuario actual como creador si no se especifica
@@ -101,13 +103,37 @@ export class SportEventsController {
 
   @Post(':id/participants')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin')
   @HttpCode(HttpStatus.CREATED)
   async addParticipant(
     @Param('id', ParseIntPipe) eventId: number,
     @Body() addParticipantDto: AddParticipantDto,
   ) {
     return await this.sportEventsService.addParticipant(eventId, addParticipantDto);
+  }
+
+  @Get(':id/social-guests')
+  @UseGuards(RolesGuard)
+  @Roles('super_admin', 'manager', 'admin')
+  async listSocialGuests(@Param('id', ParseIntPipe) eventId: number) {
+    const event = await this.sportEventsService.findOne(eventId);
+    return this.sportEventsService.listTeamSocialGuests(event.teamId);
+  }
+
+  @Post(':id/guest-participants')
+  @UseGuards(RolesGuard)
+  @Roles('super_admin', 'manager', 'admin')
+  @HttpCode(HttpStatus.CREATED)
+  async addGuestParticipant(
+    @Param('id', ParseIntPipe) eventId: number,
+    @Body() dto: AddSocialGuestDto,
+    @Request() req: { user: { id: number } },
+  ) {
+    return this.sportEventsService.addSocialGuestParticipant(
+      eventId,
+      dto,
+      req.user.id,
+    );
   }
 
   @Post(':id/participants/bulk')
@@ -130,8 +156,14 @@ export class SportEventsController {
     @Request() req,
   ) {
     // Verificar que el usuario solo puede actualizar su propia respuesta o ser manager
-    if (userId !== req.user.id && !['super_admin', 'manager'].includes(req.user.role)) {
-      throw new Error('No tienes permisos para actualizar esta respuesta');
+    const role = req.user.role ?? '';
+    if (
+      userId !== req.user.id &&
+      !['super_admin', 'manager', 'admin'].includes(role)
+    ) {
+      throw new ForbiddenException(
+        'No tienes permisos para actualizar esta respuesta',
+      );
     }
     
     return await this.sportEventsService.updateParticipantResponse(eventId, userId, updateDto);

@@ -63,6 +63,9 @@ export class SportEvent {
   @Column({ type: 'varchar', length: 300, nullable: true })
   location?: string;
 
+  @Column({ name: 'court_number', type: 'varchar', length: 20, nullable: true })
+  courtNumber?: string;
+
   @Column({ name: 'team_id' })
   teamId: number;
 

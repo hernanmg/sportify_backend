@@ -10,10 +10,11 @@ import {
 } from 'typeorm';
 import { Player } from '../../players/entities/player.entity';
 import { Team } from '../../teams/entities/teams.entity';
+import { Category } from '../../categories/entities/category.entity';
 
 @Entity('player_roster')
-@Unique(['teamId', 'jerseyNumber', 'season']) // Un número por equipo por temporada
-@Unique(['playerId', 'teamId', 'season']) // Un jugador por equipo por temporada
+/** Dorsal: validado en servicio (único por equipo/temporada entre jugadores distintos; mismo jugador en varias categorías puede repetir dorsal). */
+@Unique(['playerId', 'teamId', 'season', 'categoryId'])
 export class PlayerRoster {
   @PrimaryGeneratedColumn()
   id: number;
@@ -62,8 +63,16 @@ export class PlayerRoster {
   @Column({ name: 'season', type: 'varchar', length: 20 })
   season: string; // "2024-Apertura", "2024-Clausura"
 
-  @Column({ name: 'category', type: 'varchar', length: 10 })
-  category: string; // "+35", "+40", "Primera", etc.
+  @Column({ name: 'category_id', type: 'int', nullable: true })
+  categoryId?: number;
+
+  @ManyToOne(() => Category, { nullable: true })
+  @JoinColumn({ name: 'category_id' })
+  categoryRef?: Category;
+
+  /** Etiqueta legible; se sincroniza desde categoryRef.name */
+  @Column({ name: 'category', type: 'varchar', length: 50 })
+  category: string;
 
   // Estado médico
   @Column({ name: 'medical_status', type: 'varchar', length: 20, default: 'pending' })
