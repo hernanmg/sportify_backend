@@ -52,7 +52,7 @@ export class PlayerStatusController {
     @Body() dto: UpsertImpedimentDto,
     @Req() req: { user: { id: number; role?: string } },
   ) {
-    await this.playerStatusService.assertCanManageTeam(
+    await this.playerStatusService.assertCanReportImpediment(
       req.user.id,
       teamId,
       req.user.role,

@@ -220,15 +220,93 @@ export class NotificationsService {
     });
   }
 
+  async sendImpedimentCreated(
+    userId: number,
+    teamId: number,
+    payload: {
+      playerName: string;
+      reportedByName: string;
+      selfReported: boolean;
+      impedimentTypeLabel: string;
+      categoryLabel?: string;
+      clinicalDescription?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<Notification | null> {
+    const tipo = payload.impedimentTypeLabel;
+    const messageParts: string[] = [];
+    if (payload.selfReported) {
+      messageParts.push(`Registraste una ${tipo.toLowerCase()} en tu ficha.`);
+    } else {
+      messageParts.push(
+        `${payload.reportedByName} registró una ${tipo.toLowerCase()} en la ficha de ${payload.playerName}.`,
+      );
+    }
+    if (payload.categoryLabel) {
+      messageParts.push(`Categoría ${payload.categoryLabel}.`);
+    }
+    if (payload.endDate) {
+      messageParts.push(`Válida hasta el ${payload.endDate}.`);
+    }
+
+    const details: Array<{ label: string; value: string }> = [];
+    if (!payload.selfReported) {
+      details.push({ label: 'Registrado por', value: payload.reportedByName });
+    }
+    details.push({ label: 'Jugador', value: payload.playerName });
+    if (payload.categoryLabel) {
+      details.push({ label: 'Categoría', value: payload.categoryLabel });
+    }
+    details.push({ label: 'Tipo', value: tipo });
+    if (payload.startDate) {
+      details.push({ label: 'Desde', value: payload.startDate });
+    }
+    if (payload.endDate) {
+      details.push({ label: 'Hasta', value: payload.endDate });
+    }
+    const notes = payload.clinicalDescription?.trim();
+    if (notes) {
+      details.push({ label: 'Observaciones', value: notes });
+    }
+
+    return this.createNotification({
+      userId,
+      teamId,
+      type: NotificationType.GENERAL,
+      priority: NotificationPriority.HIGH,
+      title: '🏥 Impedimento registrado',
+      message: messageParts.join(' '),
+      data: {
+        action: 'open_player_status',
+        deepLink: '/sports/roster',
+        teamId,
+        details,
+      },
+    });
+  }
+
   async sendImpedimentCleared(
     userId: number,
     teamId: number,
     payload: {
       playerName?: string;
       reason?: string;
-      impedimentType?: string;
+      impedimentTypeLabel?: string;
+      clearedByName?: string;
     },
   ): Promise<Notification | null> {
+    const details: Array<{ label: string; value: string }> = [];
+    if (payload.playerName) {
+      details.push({ label: 'Jugador', value: payload.playerName });
+    }
+    if (payload.impedimentTypeLabel) {
+      details.push({ label: 'Tipo', value: payload.impedimentTypeLabel });
+    }
+    if (payload.clearedByName) {
+      details.push({ label: 'Dado de alta por', value: payload.clearedByName });
+    }
+
     return this.createNotification({
       userId,
       teamId,
@@ -240,10 +318,9 @@ export class NotificationsService {
         'Ya podés ser convocado: tu impedimento fue dado de alta.',
       data: {
         action: 'open_player_status',
-        teamId,
-        playerName: payload.playerName,
-        impedimentType: payload.impedimentType,
         deepLink: '/sports/roster',
+        teamId,
+        details,
       },
     });
   }

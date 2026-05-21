@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 // import { CreateUserDto } from './dtos/create-user.dto';
@@ -46,7 +47,12 @@ export class UsersController {
   @Get('profile')
   @UseGuards(AuthGuard('jwt'))
   async getProfile(@Req() req) {
-    return req.user; // Información del usuario autenticado
+    const user = await this.userService.findOne(req.user.id);
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+    const { passwordHash, ...profile } = user;
+    return profile;
   }
 
   @Put('profile')

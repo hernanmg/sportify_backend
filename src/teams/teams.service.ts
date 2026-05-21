@@ -84,6 +84,22 @@ export class TeamsService {
     return !!member;
   }
 
+  /** Miembro del equipo (admin, jugador fichado o invitado). */
+  async isTeamMember(userId: number, teamId: number): Promise<boolean> {
+    const member = await this.teamMemberRepository.findOne({
+      where: { userId, teamId },
+    });
+    if (member) return true;
+
+    const onRoster = await this.rosterRepository
+      .createQueryBuilder('pr')
+      .innerJoin('pr.player', 'p')
+      .where('pr.team_id = :teamId', { teamId })
+      .andWhere('p.user_id = :userId', { userId })
+      .getCount();
+    return onRoster > 0;
+  }
+
   async setPrimaryRole(userId: number, roleName: string): Promise<void> {
     const role = await this.roleRepository.findOne({ where: { name: roleName } });
     if (!role) return;

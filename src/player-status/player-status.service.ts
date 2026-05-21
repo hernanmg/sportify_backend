@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity';
+import { PlayerRoster } from '../roster/entities/player-roster.entity';
 import { PlayerImpediment } from './entities/player-impediment.entity';
 import { PlayerFeeOverride } from './entities/player-fee-override.entity';
 import { PlayerStatusAuditLog } from './entities/player-status-audit.entity';
@@ -26,6 +28,10 @@ export class PlayerStatusService {
     private readonly feeOverrideRepository: Repository<PlayerFeeOverride>,
     @InjectRepository(PlayerStatusAuditLog)
     private readonly auditRepository: Repository<PlayerStatusAuditLog>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(PlayerRoster)
+    private readonly rosterRepository: Repository<PlayerRoster>,
     private readonly eligibilityService: PlayerEligibilityService,
     private readonly teamsService: TeamsService,
     @Inject(forwardRef(() => NotificationsService))
@@ -49,6 +55,22 @@ export class PlayerStatusService {
     }
   }
 
+  /** Cualquier integrante del equipo puede reportar lesión / impedimento. */
+  async assertCanReportImpediment(
+    userId: number,
+    teamId: number,
+    globalRole?: string,
+  ): Promise<void> {
+    const elevated = ['super_admin', 'manager', 'admin', 'team_captain'];
+    if (globalRole && elevated.includes(globalRole)) return;
+    const isMember = await this.teamsService.isTeamMember(userId, teamId);
+    if (!isMember) {
+      throw new ForbiddenException(
+        'Debés ser miembro del equipo para registrar un impedimento',
+      );
+    }
+  }
+
   private computeEndDate(
     startDate: string,
     durationDays?: number,
@@ -57,6 +79,39 @@ export class PlayerStatusService {
     const d = new Date(startDate);
     d.setDate(d.getDate() + durationDays);
     return d.toISOString().slice(0, 10);
+  }
+
+  private formatUserName(user: User | null | undefined): string {
+    if (!user) return 'Usuario desconocido';
+    const full = [user.firstName, user.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    return full || user.username;
+  }
+
+  private impedimentTypeLabel(type: ImpedimentType): string {
+    switch (type) {
+      case ImpedimentType.INJURY:
+        return 'Lesión';
+      case ImpedimentType.SUSPENSION:
+        return 'Suspensión';
+      default:
+        return 'Otro impedimento';
+    }
+  }
+
+  private async resolveCategoryForUser(
+    teamId: number,
+    userId: number,
+  ): Promise<string | undefined> {
+    const rows = await this.rosterRepository.find({
+      where: { teamId },
+      relations: ['player', 'categoryRef'],
+    });
+    const row = rows.find((r) => r.player?.user_id === userId);
+    if (!row) return undefined;
+    return row.categoryRef?.name ?? row.category ?? undefined;
   }
 
   async listImpediments(teamId: number, userId?: number) {
@@ -102,6 +157,22 @@ export class PlayerStatusService {
       { impedimentId: saved.id, type: dto.impedimentType },
     );
 
+    const [affectedUser, actorUser] = await Promise.all([
+      this.userRepository.findOne({ where: { id: dto.userId } }),
+      this.userRepository.findOne({ where: { id: actorId } }),
+    ]);
+    const categoryLabel = await this.resolveCategoryForUser(teamId, dto.userId);
+    await this.notificationsService.sendImpedimentCreated(dto.userId, teamId, {
+      playerName: this.formatUserName(affectedUser),
+      reportedByName: this.formatUserName(actorUser),
+      selfReported: actorId === dto.userId,
+      impedimentTypeLabel: this.impedimentTypeLabel(dto.impedimentType),
+      categoryLabel,
+      clinicalDescription: dto.description,
+      startDate: dto.startDate,
+      endDate,
+    });
+
     return saved;
   }
 
@@ -125,15 +196,19 @@ export class PlayerStatusService {
       { impedimentId },
     );
 
-    const typeLabel =
-      imp.impedimentType === ImpedimentType.INJURY
-        ? 'lesión'
-        : imp.impedimentType === ImpedimentType.SUSPENSION
-          ? 'suspensión'
-          : 'impedimento';
+    const [affectedUser, actorUser] = await Promise.all([
+      this.userRepository.findOne({ where: { id: imp.userId } }),
+      this.userRepository.findOne({ where: { id: actorId } }),
+    ]);
+    const tipo = this.impedimentTypeLabel(imp.impedimentType).toLowerCase();
     await this.notificationsService.sendImpedimentCleared(imp.userId, teamId, {
-      reason: `Tu ${typeLabel} fue dado de alta. Ya podés ser convocado.`,
-      impedimentType: imp.impedimentType,
+      playerName: this.formatUserName(affectedUser),
+      reason: `Tu ${tipo} fue dado de alta. Ya podés ser convocado.`,
+      impedimentTypeLabel: this.impedimentTypeLabel(imp.impedimentType),
+      clearedByName:
+        actorId === imp.userId
+          ? undefined
+          : this.formatUserName(actorUser),
     });
 
     return imp;
@@ -155,9 +230,14 @@ export class PlayerStatusService {
       if (!end || end > today) continue;
       imp.isActive = false;
       await this.impedimentRepository.save(imp);
+      const affectedUser = await this.userRepository.findOne({
+        where: { id: imp.userId },
+      });
       await this.notificationsService.sendImpedimentCleared(imp.userId, imp.teamId, {
-        reason: 'Tu impedimento cumplió el plazo. Ya estás habilitado para convocatorias.',
-        impedimentType: imp.impedimentType,
+        playerName: this.formatUserName(affectedUser),
+        reason:
+          'Tu impedimento cumplió el plazo. Ya estás habilitado para convocatorias.',
+        impedimentTypeLabel: this.impedimentTypeLabel(imp.impedimentType),
       });
       count++;
     }
