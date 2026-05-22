@@ -7,6 +7,8 @@ import { PlayerPayment } from './entities/player-payment.entity';
 import { PaymentAllocation } from './entities/payment-allocation.entity';
 import { LedgerEntry } from './entities/ledger-entry.entity';
 import { RosterModule } from 'src/roster/roster.module';
+import { TeamsModule } from 'src/teams/teams.module';
+import { PaymentReceiptStorage } from './payment-receipt.storage';
 
 @Module({
   imports: [
@@ -17,9 +19,10 @@ import { RosterModule } from 'src/roster/roster.module';
       LedgerEntry,
     ]),
     RosterModule,
+    TeamsModule,
   ],
   controllers: [FinanceController],
-  providers: [FinanceService],
+  providers: [FinanceService, PaymentReceiptStorage],
   exports: [FinanceService],
 })
 export class FinanceModule {}

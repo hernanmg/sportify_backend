@@ -286,6 +286,108 @@ export class NotificationsService {
     });
   }
 
+  /** Aviso al cuerpo técnico (DT / admin del equipo). */
+  async sendImpedimentStaffAlert(
+    staffUserId: number,
+    teamId: number,
+    payload: {
+      playerName: string;
+      reportedByName: string;
+      selfReported: boolean;
+      impedimentTypeLabel: string;
+      categoryLabel?: string;
+      clinicalDescription?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<Notification | null> {
+    const tipo = payload.impedimentTypeLabel;
+    const message = payload.selfReported
+      ? `${payload.playerName} informó una ${tipo.toLowerCase()} en su ficha.`
+      : `${payload.reportedByName} registró una ${tipo.toLowerCase()} en la ficha de ${payload.playerName}.`;
+
+    const details: Array<{ label: string; value: string }> = [
+      { label: 'Jugador', value: payload.playerName },
+    ];
+    if (!payload.selfReported) {
+      details.unshift({ label: 'Registrado por', value: payload.reportedByName });
+    }
+    if (payload.categoryLabel) {
+      details.push({ label: 'Categoría', value: payload.categoryLabel });
+    }
+    details.push({ label: 'Tipo', value: tipo });
+    if (payload.startDate) {
+      details.push({ label: 'Desde', value: payload.startDate });
+    }
+    if (payload.endDate) {
+      details.push({ label: 'Hasta', value: payload.endDate });
+    }
+    const notes = payload.clinicalDescription?.trim();
+    if (notes) {
+      details.push({ label: 'Observaciones', value: notes });
+    }
+
+    const suffix = [
+      payload.categoryLabel ? `Categoría ${payload.categoryLabel}.` : '',
+      payload.endDate ? `Hasta el ${payload.endDate}.` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return this.createNotification({
+      userId: staffUserId,
+      teamId,
+      type: NotificationType.GENERAL,
+      priority: NotificationPriority.HIGH,
+      title: '🏥 Impedimento en el plantel',
+      message: `${message}${suffix ? ' $suffix' : ''}`,
+      data: {
+        action: 'open_player_status',
+        deepLink: '/sports/roster',
+        teamId,
+        details,
+      },
+    });
+  }
+
+  /**
+   * Jugador afectado: solo si no se auto-reportó.
+   * Staff (DT/admin del equipo): siempre, salvo quien ya registró como admin.
+   */
+  async notifyImpedimentCreated(
+    teamId: number,
+    affectedUserId: number,
+    actorId: number,
+    staffUserIds: number[],
+    payload: {
+      playerName: string;
+      reportedByName: string;
+      impedimentTypeLabel: string;
+      categoryLabel?: string;
+      clinicalDescription?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<void> {
+    const selfReported = actorId === affectedUserId;
+    const base = { ...payload, selfReported };
+
+    if (!selfReported) {
+      await this.sendImpedimentCreated(affectedUserId, teamId, {
+        ...base,
+        reportedByName: payload.reportedByName,
+      });
+    }
+
+    const uniqueStaff = [...new Set(staffUserIds)].filter(
+      (id) => id !== affectedUserId || !selfReported,
+    );
+    for (const staffId of uniqueStaff) {
+      if (staffId === actorId) continue;
+      await this.sendImpedimentStaffAlert(staffId, teamId, base);
+    }
+  }
+
   async sendImpedimentCleared(
     userId: number,
     teamId: number,

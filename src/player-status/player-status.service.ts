@@ -162,16 +162,23 @@ export class PlayerStatusService {
       this.userRepository.findOne({ where: { id: actorId } }),
     ]);
     const categoryLabel = await this.resolveCategoryForUser(teamId, dto.userId);
-    await this.notificationsService.sendImpedimentCreated(dto.userId, teamId, {
+    const staffIds = await this.teamsService.listTeamAdminUserIds(teamId);
+    const payload = {
       playerName: this.formatUserName(affectedUser),
       reportedByName: this.formatUserName(actorUser),
-      selfReported: actorId === dto.userId,
       impedimentTypeLabel: this.impedimentTypeLabel(dto.impedimentType),
       categoryLabel,
       clinicalDescription: dto.description,
       startDate: dto.startDate,
       endDate,
-    });
+    };
+    await this.notificationsService.notifyImpedimentCreated(
+      teamId,
+      dto.userId,
+      actorId,
+      staffIds,
+      payload,
+    );
 
     return saved;
   }

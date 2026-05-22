@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,8 +9,14 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
@@ -19,7 +26,8 @@ import { RegisterPaymentDto } from './dtos/register-payment.dto';
 import { CreateTeamExpenseDto } from './dtos/create-team-expense.dto';
 import { SubmitPaymentDto } from './dtos/submit-payment.dto';
 import { RejectPaymentDto } from './dtos/reject-payment.dto';
-import { FeeChargeStatus } from './finance.enums';
+import { FeeChargeStatus, PaymentMethod } from './finance.enums';
+import { ReceiptUploadFile } from './payment-receipt.storage';
 
 @Controller('finance')
 @UseGuards(AuthGuard('jwt'))
@@ -98,11 +106,60 @@ export class FinanceController {
   }
 
   @Post('payments/submit')
+  @UseInterceptors(
+    FileInterceptor('receipt', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
   submitPayment(
-    @Body() dto: SubmitPaymentDto,
-    @Req() req: { user: { id: number } },
+    @UploadedFile() receipt: ReceiptUploadFile | undefined,
+    @Body() body: Record<string, string>,
+    @Req() req: { user: { id: number; role?: string } },
   ) {
-    return this.financeService.submitPayment(dto, req.user.id);
+    const teamId = parseInt(body.teamId, 10);
+    const amount = parseFloat(body.amount);
+    if (!teamId || Number.isNaN(amount) || amount <= 0) {
+      throw new BadRequestException('teamId y amount son requeridos');
+    }
+    let feeChargeIds: number[] | undefined;
+    if (body.feeChargeIds?.trim()) {
+      try {
+        const parsed = JSON.parse(body.feeChargeIds);
+        if (Array.isArray(parsed)) {
+          feeChargeIds = parsed.map((n) => Number(n)).filter((n) => !Number.isNaN(n));
+        }
+      } catch {
+        feeChargeIds = body.feeChargeIds
+          .split(',')
+          .map((s) => parseInt(s.trim(), 10))
+          .filter((n) => !Number.isNaN(n));
+      }
+    }
+    const dto: SubmitPaymentDto = {
+      teamId,
+      amount,
+      method: (body.method as PaymentMethod) || PaymentMethod.TRANSFER,
+      notes: body.notes,
+      feeChargeIds,
+    };
+    return this.financeService.submitPayment(dto, req.user.id, receipt);
+  }
+
+  @Get('payments/:id/receipt')
+  async getPaymentReceipt(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: { user: { id: number; role?: string } },
+    @Res() res: Response,
+  ) {
+    const { buffer, mimeType } = await this.financeService.getPaymentReceipt(
+      id,
+      req.user.id,
+      req.user.role,
+    );
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
   }
 
   @Get('team/:teamId/payments/pending')

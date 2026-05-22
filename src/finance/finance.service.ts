@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -24,6 +25,11 @@ import { SubmitPaymentDto } from './dtos/submit-payment.dto';
 import { RejectPaymentDto } from './dtos/reject-payment.dto';
 import { RosterService } from 'src/roster/roster.service';
 import { PlayerRoster } from 'src/roster/entities/player-roster.entity';
+import { TeamsService } from 'src/teams/teams.service';
+import {
+  PaymentReceiptStorage,
+  ReceiptUploadFile,
+} from './payment-receipt.storage';
 
 @Injectable()
 export class FinanceService {
@@ -37,7 +43,61 @@ export class FinanceService {
     @InjectRepository(LedgerEntry)
     private readonly ledgerRepository: Repository<LedgerEntry>,
     private readonly rosterService: RosterService,
+    private readonly teamsService: TeamsService,
+    private readonly receiptStorage: PaymentReceiptStorage,
   ) {}
+
+  mapPaymentResponse(payment: PlayerPayment) {
+    const user = payment.user;
+    const fullName = user
+      ? [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+        user.username
+      : undefined;
+    return {
+      id: payment.id,
+      teamId: payment.teamId,
+      userId: payment.userId,
+      amount: this.toNumber(payment.amount),
+      method: payment.method,
+      status: payment.status,
+      notes: payment.notes,
+      receiptPath: payment.receiptPath ?? null,
+      receiptMimeType: payment.receiptMimeType ?? null,
+      hasReceipt: !!payment.receiptPath,
+      createdAt: payment.createdAt,
+      confirmedAt: payment.confirmedAt,
+      rejectionReason: payment.rejectionReason,
+      user: user
+        ? {
+            id: user.id,
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+          }
+        : undefined,
+      userName: fullName,
+    };
+  }
+
+  private async assertCanViewReceipt(
+    payment: PlayerPayment,
+    userId: number,
+    globalRole?: string,
+  ): Promise<void> {
+    if (payment.userId === userId) return;
+    const elevated = ['super_admin', 'manager', 'admin'];
+    if (globalRole && elevated.includes(globalRole)) {
+      const isAdmin = await this.teamsService.isTeamAdmin(
+        userId,
+        payment.teamId,
+      );
+      if (isAdmin) return;
+      if (['super_admin', 'manager'].includes(globalRole)) return;
+    }
+    throw new ForbiddenException(
+      'No tenés permiso para ver este comprobante',
+    );
+  }
 
   private toNumber(value: string | number | null | undefined): number {
     if (value === null || value === undefined) return 0;
@@ -255,7 +315,11 @@ export class FinanceService {
     );
   }
 
-  async submitPayment(dto: SubmitPaymentDto, userId: number) {
+  async submitPayment(
+    dto: SubmitPaymentDto,
+    userId: number,
+    receiptFile?: ReceiptUploadFile,
+  ) {
     const payment = this.paymentRepository.create({
       teamId: dto.teamId,
       userId,
@@ -266,11 +330,29 @@ export class FinanceService {
       recordedBy: userId,
       pendingFeeChargeIds: dto.feeChargeIds,
     });
-    return this.paymentRepository.save(payment);
+    const saved = await this.paymentRepository.save(payment);
+
+    if (receiptFile) {
+      const { relativePath, mimeType } = this.receiptStorage.saveForPayment(
+        saved.teamId,
+        saved.id,
+        receiptFile,
+      );
+      saved.receiptPath = relativePath;
+      saved.receiptMimeType = mimeType;
+      await this.paymentRepository.save(saved);
+    }
+
+    return this.mapPaymentResponse(
+      (await this.paymentRepository.findOne({
+        where: { id: saved.id },
+        relations: ['user'],
+      })) ?? saved,
+    );
   }
 
   async getPendingPayments(teamId: number) {
-    return this.paymentRepository.find({
+    const rows = await this.paymentRepository.find({
       where: {
         teamId,
         status: PaymentStatus.PENDING_CONFIRMATION,
@@ -278,6 +360,26 @@ export class FinanceService {
       relations: ['user'],
       order: { createdAt: 'ASC' },
     });
+    return rows.map((p) => this.mapPaymentResponse(p));
+  }
+
+  async getPaymentReceipt(
+    paymentId: number,
+    userId: number,
+    globalRole?: string,
+  ): Promise<{ buffer: Buffer; mimeType: string }> {
+    const payment = await this.findPaymentOrThrow(paymentId);
+    if (!payment.receiptPath) {
+      throw new NotFoundException('Este pago no tiene comprobante');
+    }
+    await this.assertCanViewReceipt(payment, userId, globalRole);
+    const { buffer, mimeType } = this.receiptStorage.readAbsolutePath(
+      payment.receiptPath,
+    );
+    return {
+      buffer,
+      mimeType: payment.receiptMimeType ?? mimeType,
+    };
   }
 
   async confirmPayment(paymentId: number, managerId: number) {
@@ -477,9 +579,9 @@ export class FinanceService {
           c.status === FeeChargeStatus.PENDING ||
           c.status === FeeChargeStatus.PARTIAL,
       ),
-      pendingPayments,
+      pendingPayments: pendingPayments.map((p) => this.mapPaymentResponse(p)),
       charges,
-      payments,
+      payments: payments.map((p) => this.mapPaymentResponse(p)),
     };
   }
 

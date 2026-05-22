@@ -52,6 +52,12 @@ export class PlayerPayment {
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
+  @Column({ name: 'receipt_path', type: 'varchar', length: 500, nullable: true })
+  receiptPath?: string;
+
+  @Column({ name: 'receipt_mime_type', type: 'varchar', length: 100, nullable: true })
+  receiptMimeType?: string;
+
   @Column({ name: 'recorded_by', nullable: true })
   recordedBy?: number;
 

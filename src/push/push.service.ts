@@ -194,7 +194,18 @@ export class PushService {
       data.sportEventId = String(saved.sportEventId);
     }
     data.type = notification.type;
-    data.action = this.actionForType(notification.type);
+    const payloadAction =
+      payload && typeof payload === 'object' && payload.action != null
+        ? String(payload.action)
+        : '';
+    data.action =
+      payloadAction || this.actionForType(notification.type);
+    if (payload && typeof payload === 'object' && payload.deepLink != null) {
+      data.deepLink = String(payload.deepLink);
+    }
+    if (payload && typeof payload === 'object' && payload.teamId != null) {
+      data.teamId = String(payload.teamId);
+    }
 
     try {
       const messaging = this.firebaseAdmin.messaging();
@@ -205,6 +216,13 @@ export class PushService {
           body: notification.body,
         },
         data,
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'sportify_alerts',
+            sound: 'default',
+          },
+        },
         webpush: {
           fcmOptions: {
             link: data.deepLink ?? '/notifications',

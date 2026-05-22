@@ -15,6 +15,9 @@ lerna-debug.log*
 # OS
 .DS_Store
 
+# Comprobantes de pago subidos
+/uploads
+
 # Tests
 /coverage
 /.nyc_output

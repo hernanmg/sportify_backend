@@ -84,6 +84,14 @@ export class TeamsService {
     return !!member;
   }
 
+  /** DT / admins del equipo (tabla team_members, rol admin). */
+  async listTeamAdminUserIds(teamId: number): Promise<number[]> {
+    const members = await this.teamMemberRepository.find({
+      where: { teamId, role: TeamMemberRole.ADMIN },
+    });
+    return members.map((m) => m.userId);
+  }
+
   /** Miembro del equipo (admin, jugador fichado o invitado). */
   async isTeamMember(userId: number, teamId: number): Promise<boolean> {
     const member = await this.teamMemberRepository.findOne({

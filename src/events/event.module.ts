@@ -33,6 +33,10 @@ import { TeamsModule } from '../teams/teams.module';
 import { ConvocationTemplate } from './entities/convocation-template.entity';
 import { ConvocationTemplatesService } from './convocation-templates.service';
 import { ConvocationTemplatesController } from './convocation-templates.controller';
+import { MatchPeerRating } from './entities/match-peer-rating.entity';
+import { MatchOfficialRating } from './entities/match-official-rating.entity';
+import { PostMatchService } from './post-match.service';
+import { PostMatchController } from './post-match.controller';
 
 @Module({
   imports: [
@@ -41,6 +45,8 @@ import { ConvocationTemplatesController } from './convocation-templates.controll
       TypeEvent, 
       SportEvent, 
       EventParticipant,
+      MatchPeerRating,
+      MatchOfficialRating,
       ConvocationTemplate,
       PlayerRoster,
       Player,
@@ -66,6 +72,7 @@ import { ConvocationTemplatesController } from './convocation-templates.controll
     EventExpensesController,
     ConvocationsController,
     ConvocationTemplatesController,
+    PostMatchController,
     DebugController,
   ],
   providers: [
@@ -75,7 +82,8 @@ import { ConvocationTemplatesController } from './convocation-templates.controll
     ConvocationsService,
     ConvocationTemplatesService,
     EventStateService,
+    PostMatchService,
   ],
-  exports: [EventsService, SportEventsService, ConvocationsService, EventStateService],
+  exports: [EventsService, SportEventsService, ConvocationsService, EventStateService, PostMatchService],
 })
 export class EventsModule {}

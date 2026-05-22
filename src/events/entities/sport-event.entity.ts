@@ -122,6 +122,12 @@ export class SportEvent {
   @Column({ name: 'reminder_sent', type: 'boolean', default: false })
   reminderSent: boolean;
 
+  @Column({ name: 'post_match_voting_closed', type: 'boolean', default: false })
+  postMatchVotingClosed: boolean;
+
+  @Column({ name: 'player_of_match_user_id', type: 'int', nullable: true })
+  playerOfMatchUserId?: number;
+
   @OneToMany(() => EventParticipant, participant => participant.event)
   participants: EventParticipant[];
 
