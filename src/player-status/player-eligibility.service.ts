@@ -15,6 +15,7 @@ import { FinanceService } from '../finance/finance.service';
 export interface PlayerEligibilityView {
   userId: number;
   playerName: string;
+  avatarUrl?: string | null;
   jerseyNumber?: number;
   position?: string;
   category?: string;
@@ -258,6 +259,7 @@ export class PlayerEligibilityService {
       results.push({
         userId,
         playerName: this.userDisplayName(row),
+        avatarUrl: row.player?.user?.avatarUrl ?? null,
         jerseyNumber: row.jerseyNumber,
         position: row.position,
         category: row.category,

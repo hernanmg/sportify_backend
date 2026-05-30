@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TeamsController } from './teams.controller';
 import { TeamsService } from './teams.service';
@@ -13,6 +13,13 @@ import { Role } from '../roles/entities/role.entity';
 import { UserRole } from '../users-roles/entities/userRole.entity';
 import { Category } from '../categories/entities/category.entity';
 import { TeamSocialGuest } from '../events/entities/team-social-guest.entity';
+import { TeamTacticalBoard } from './entities/team-tactical-board.entity';
+import { TacticalBoardsService } from './tactical-boards.service';
+import {
+  TacticalBoardsController,
+  TacticalBoardsPublicController,
+} from './tactical-boards.controller';
+import { PlayerStatusModule } from '../player-status/player-status.module';
 
 @Module({
   imports: [
@@ -28,10 +35,16 @@ import { TeamSocialGuest } from '../events/entities/team-social-guest.entity';
       UserRole,
       Category,
       TeamSocialGuest,
+      TeamTacticalBoard,
     ]),
+    forwardRef(() => PlayerStatusModule),
   ],
-  controllers: [TeamsController],
-  providers: [TeamsService],
-  exports: [TeamsService],
+  controllers: [
+    TeamsController,
+    TacticalBoardsController,
+    TacticalBoardsPublicController,
+  ],
+  providers: [TeamsService, TacticalBoardsService],
+  exports: [TeamsService, TacticalBoardsService],
 })
 export class TeamsModule {}

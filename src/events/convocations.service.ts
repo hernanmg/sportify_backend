@@ -87,8 +87,10 @@ export class ConvocationsService {
     teamId: number,
     globalRole?: string,
   ): Promise<void> {
-    const elevated = ['super_admin', 'manager'];
-    if (globalRole && elevated.includes(globalRole)) return;
+    const allowedGlobal = ['super_admin', 'manager', 'admin', 'team_captain'];
+    if (globalRole && allowedGlobal.includes(globalRole)) {
+      if (['super_admin', 'manager', 'admin'].includes(globalRole)) return;
+    }
     await this.playerStatusService.assertCanManageTeam(
       userId,
       teamId,

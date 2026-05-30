@@ -35,6 +35,7 @@ import { ConvocationTemplatesService } from './convocation-templates.service';
 import { ConvocationTemplatesController } from './convocation-templates.controller';
 import { MatchPeerRating } from './entities/match-peer-rating.entity';
 import { MatchOfficialRating } from './entities/match-official-rating.entity';
+import { MatchPlayerStats } from './entities/match-player-stats.entity';
 import { PostMatchService } from './post-match.service';
 import { PostMatchController } from './post-match.controller';
 
@@ -47,6 +48,7 @@ import { PostMatchController } from './post-match.controller';
       EventParticipant,
       MatchPeerRating,
       MatchOfficialRating,
+      MatchPlayerStats,
       ConvocationTemplate,
       PlayerRoster,
       Player,

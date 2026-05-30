@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FinanceController } from './finance.controller';
 import { FinanceService } from './finance.service';
@@ -19,7 +19,7 @@ import { PaymentReceiptStorage } from './payment-receipt.storage';
       LedgerEntry,
     ]),
     RosterModule,
-    TeamsModule,
+    forwardRef(() => TeamsModule),
   ],
   controllers: [FinanceController],
   providers: [FinanceService, PaymentReceiptStorage],

@@ -128,6 +128,29 @@ export class SportEvent {
   @Column({ name: 'player_of_match_user_id', type: 'int', nullable: true })
   playerOfMatchUserId?: number;
 
+  @Column({ name: 'team_score', type: 'int', nullable: true })
+  teamScore?: number;
+
+  @Column({ name: 'opponent_score', type: 'int', nullable: true })
+  opponentScore?: number;
+
+  @Column({ name: 'post_match_report', type: 'text', nullable: true })
+  postMatchReport?: string;
+
+  @Column({
+    name: 'post_match_report_updated_by',
+    type: 'int',
+    nullable: true,
+  })
+  postMatchReportUpdatedBy?: number;
+
+  @Column({
+    name: 'post_match_report_updated_at',
+    type: 'timestamp',
+    nullable: true,
+  })
+  postMatchReportUpdatedAt?: Date;
+
   @OneToMany(() => EventParticipant, participant => participant.event)
   participants: EventParticipant[];
 

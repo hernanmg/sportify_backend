@@ -90,6 +90,9 @@ export class EventParticipant {
   @Column({ name: 'is_convoked', type: 'boolean', default: true })
   isConvoked: boolean;
 
+  @Column({ name: 'is_starter', type: 'boolean', default: false })
+  isStarter: boolean;
+
   @Column({ name: 'eligibility_status', type: 'varchar', length: 30, nullable: true })
   eligibilityStatus?: string;
 
