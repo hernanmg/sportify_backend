@@ -10,6 +10,8 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { RosterService } from './roster.service';
 import { CreateRosterDto } from './dtos/create-roster.dto';
@@ -37,16 +39,39 @@ export class RosterController {
   }
 
   @Get('team/:teamId')
-  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'player')
+  @Roles(
+    'super_admin',
+    'manager',
+    'admin',
+    'team_captain',
+    'dt',
+    'player',
+    'guest',
+    'user',
+  )
   async findByTeam(
     @Param('teamId') teamId: number,
     @Query('season') season?: string,
     @Query('categoryIds') categoryIdsRaw?: string,
+    @Request() req?: { user: { id: number; role?: string } },
   ) {
     const categoryIds = categoryIdsRaw
       ? categoryIdsRaw.split(',').map((id) => parseInt(id.trim(), 10)).filter((id) => !Number.isNaN(id))
       : undefined;
-    return await this.rosterService.findByTeam(teamId, season, categoryIds);
+    try {
+      return await this.rosterService.findByTeam(
+        teamId,
+        season,
+        categoryIds,
+        req?.user?.id,
+        req?.user?.role,
+      );
+    } catch (e) {
+      if (e instanceof ForbiddenException) throw e;
+      const message =
+        e instanceof Error ? e.message : 'No se pudo cargar el plantel';
+      throw new ForbiddenException(message);
+    }
   }
 
   @Get('season/:season')

@@ -123,6 +123,23 @@ export class PlayerEligibilityService {
     return full || user.username || `Usuario ${user.id}`;
   }
 
+  /** userIds con ficha en una categoría del equipo (lista de buena fe). */
+  async getRosterUserIdsByCategory(
+    teamId: number,
+    categoryId: number,
+  ): Promise<number[]> {
+    const rows = await this.rosterRepository.find({
+      where: { teamId, categoryId },
+      relations: ['player'],
+    });
+    const ids: number[] = [];
+    for (const row of rows) {
+      const uid = row.player?.user_id;
+      if (uid) ids.push(uid);
+    }
+    return ids;
+  }
+
   async getTeamEligibility(
     teamId: number,
     season?: string,

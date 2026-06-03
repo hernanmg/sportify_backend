@@ -31,6 +31,7 @@ export interface ConvocationDto {
   location?: string;
   courtNumber?: string;
   teamId: number;
+  categoryId?: number;
   opponentName?: string;
   isHomeMatch?: boolean;
   isOfficialMatch?: boolean;
@@ -102,8 +103,18 @@ export class ConvocationsService {
     convocationDto: ConvocationDto,
     createdBy: number,
   ): Promise<SportEvent> {
+    const { categoryId, ...rest } = convocationDto;
+    const metadata =
+      categoryId != null
+        ? {
+            categoryId,
+            categoryIds: [categoryId],
+          }
+        : undefined;
+
     const eventData = {
-      ...convocationDto,
+      ...rest,
+      metadata,
       type: SportEventType.MATCH,
       status: SportEventStatus.DRAFT,
       createdBy,
@@ -150,7 +161,23 @@ export class ConvocationsService {
 
   async getEligibleRoster(convocationId: number) {
     const convocation = await this.findOne(convocationId);
-    return this.eligibilityService.getTeamEligibility(convocation.teamId);
+    const list = await this.eligibilityService.getTeamEligibility(
+      convocation.teamId,
+    );
+    const meta = convocation.metadata as {
+      categoryId?: number;
+      categoryIds?: number[];
+    } | null;
+    const categoryId = meta?.categoryId ?? meta?.categoryIds?.[0];
+    if (!categoryId) {
+      return list;
+    }
+    const rosterRows = await this.eligibilityService.getRosterUserIdsByCategory(
+      convocation.teamId,
+      categoryId,
+    );
+    const allowed = new Set(rosterRows);
+    return list.filter((e) => allowed.has(e.userId));
   }
 
   async setSquad(
@@ -180,19 +207,23 @@ export class ConvocationsService {
       convocation.teamId,
     );
     const byUser = new Map(eligibility.map((e) => [e.userId, e]));
-    const convokedSet = new Set(dto.convokedUserIds);
 
     await this.participantRepository.delete({ eventId: convocationId });
 
     const rows: Partial<EventParticipant>[] = [];
-    for (const entry of eligibility) {
-      const isConvoked = convokedSet.has(entry.userId);
+    for (const userId of dto.convokedUserIds) {
+      const entry = byUser.get(userId);
+      if (!entry) {
+        throw new BadRequestException(
+          `El jugador ${userId} no está en el plantel elegible del equipo`,
+        );
+      }
       rows.push({
         eventId: convocationId,
         userId: entry.userId,
         status: ParticipantStatus.PENDING,
         role: ParticipantRole.PLAYER,
-        isConvoked,
+        isConvoked: true,
         eligibilityStatus: entry.status,
         eligibilityDetail: entry.reason,
         feeOverrideBy: entry.feeOverride?.overriddenBy,
@@ -245,7 +276,9 @@ export class ConvocationsService {
       eligibilityDetail: p.eligibilityDetail,
     }));
 
-    const allUserIds = participants.map((p) => p.userId);
+    const convokedUserIds = participants
+      .filter((p) => p.isConvoked)
+      .map((p) => p.userId);
 
     await this.notificationsService.sendMatchInvitation(
       convocation.id,
@@ -265,7 +298,7 @@ export class ConvocationsService {
         squadSummary,
         isOfficial: convocation.isOfficialMatch,
       },
-      allUserIds,
+      convokedUserIds,
     );
 
     return this.findOne(convocationId);
@@ -277,7 +310,7 @@ export class ConvocationsService {
     });
 
     const stats: ConvocationStats = {
-      total: participants.length,
+      total: 0,
       confirmed: 0,
       pending: 0,
       declined: 0,
@@ -285,8 +318,11 @@ export class ConvocationsService {
       convoked: 0,
     };
 
-    participants.forEach((participant) => {
-      if (participant.isConvoked) stats.convoked++;
+    const convoked = participants.filter((p) => p.isConvoked);
+    stats.total = convoked.length;
+    stats.convoked = convoked.length;
+
+    convoked.forEach((participant) => {
       switch (participant.status) {
         case ParticipantStatus.CONFIRMED:
           stats.confirmed++;
@@ -310,16 +346,18 @@ export class ConvocationsService {
     convocationId: number,
   ): Promise<EventParticipant[]> {
     return await this.participantRepository.find({
-      where: { eventId: convocationId },
+      where: { eventId: convocationId, isConvoked: true },
       relations: ['user'],
-      order: { isConvoked: 'DESC', status: 'ASC', createdAt: 'ASC' },
+      order: { status: 'ASC', createdAt: 'ASC' },
     });
   }
 
   async resendConvocation(convocationId: number): Promise<void> {
     const convocation = await this.findOne(convocationId);
     const participants = convocation.participants ?? [];
-    const userIds = participants.map((p) => p.userId);
+    const convokedUserIds = participants
+      .filter((p) => p.isConvoked)
+      .map((p) => p.userId);
 
     await this.notificationsService.sendMatchInvitation(
       convocation.id,
@@ -330,7 +368,7 @@ export class ConvocationsService {
         location: convocation.location || 'Por definir',
         courtNumber: convocation.courtNumber,
       },
-      userIds,
+      convokedUserIds,
     );
   }
 
@@ -418,7 +456,7 @@ export class ConvocationsService {
     });
 
     return participants
-      .filter((p) => p.event.type === SportEventType.MATCH)
+      .filter((p) => p.event.type === SportEventType.MATCH && p.isConvoked)
       .map((p) => p.event)
       .sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
   }

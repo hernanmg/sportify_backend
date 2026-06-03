@@ -80,6 +80,10 @@ export class EventParticipant {
   @Column({ name: 'attended', type: 'boolean', nullable: true })
   attended?: boolean;
 
+  /** present | absent | justified */
+  @Column({ name: 'attendance_status', type: 'varchar', length: 20, nullable: true })
+  attendanceStatus?: string;
+
   /** Si false, no entra en el reparto de gastos del evento social */
   @Column({ name: 'included_in_expense_split', type: 'boolean', default: true })
   includedInExpenseSplit: boolean;

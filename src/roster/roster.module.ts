@@ -8,6 +8,7 @@ import { Team } from '../teams/entities/teams.entity';
 import { User } from '../users/entities/user.entity';
 import { Category } from '../categories/entities/category.entity';
 import { TeamCategory } from '../teams/entities/team-category.entity';
+import { TeamMember } from '../teams/entities/team-member.entity';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { TeamCategory } from '../teams/entities/team-category.entity';
       User,
       Category,
       TeamCategory,
+      TeamMember,
     ]),
   ],
   controllers: [RosterController],

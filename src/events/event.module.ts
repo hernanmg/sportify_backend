@@ -30,6 +30,7 @@ import { SchedulerModule } from '../scheduler/scheduler.module';
 import { WebSocketsModule } from '../websockets/websockets.module';
 import { PlayerStatusModule } from '../player-status/player-status.module';
 import { TeamsModule } from '../teams/teams.module';
+import { FinanceModule } from '../finance/finance.module';
 import { ConvocationTemplate } from './entities/convocation-template.entity';
 import { ConvocationTemplatesService } from './convocation-templates.service';
 import { ConvocationTemplatesController } from './convocation-templates.controller';
@@ -38,6 +39,8 @@ import { MatchOfficialRating } from './entities/match-official-rating.entity';
 import { MatchPlayerStats } from './entities/match-player-stats.entity';
 import { PostMatchService } from './post-match.service';
 import { PostMatchController } from './post-match.controller';
+import { AttendanceService } from './attendance.service';
+import { AttendanceController } from './attendance.controller';
 
 @Module({
   imports: [
@@ -67,6 +70,7 @@ import { PostMatchController } from './post-match.controller';
     forwardRef(() => WebSocketsModule),
     PlayerStatusModule,
     TeamsModule,
+    FinanceModule,
   ],
   controllers: [
     EventsController,
@@ -75,6 +79,7 @@ import { PostMatchController } from './post-match.controller';
     ConvocationsController,
     ConvocationTemplatesController,
     PostMatchController,
+    AttendanceController,
     DebugController,
   ],
   providers: [
@@ -85,6 +90,7 @@ import { PostMatchController } from './post-match.controller';
     ConvocationTemplatesService,
     EventStateService,
     PostMatchService,
+    AttendanceService,
   ],
   exports: [EventsService, SportEventsService, ConvocationsService, EventStateService, PostMatchService],
 })

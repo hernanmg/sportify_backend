@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { SportEvent, SportEventType, SportEventStatus } from './entities/sport-event.entity';
@@ -14,6 +21,7 @@ import { UserRole } from '../users-roles/entities/userRole.entity';
 import { Role } from '../roles/entities/role.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EventStateService } from './event-state.service';
+import { FinanceService } from '../finance/finance.service';
 
 @Injectable()
 export class SportEventsService {
@@ -38,6 +46,8 @@ export class SportEventsService {
     private readonly roleRepository: Repository<Role>,
     private readonly notificationsService: NotificationsService,
     private readonly eventStateService: EventStateService,
+    @Inject(forwardRef(() => FinanceService))
+    private readonly financeService: FinanceService,
   ) {}
 
   async create(createSportEventDto: CreateSportEventDto): Promise<SportEvent> {
@@ -152,6 +162,7 @@ export class SportEventsService {
 
   async remove(id: number): Promise<void> {
     const event = await this.findOne(id);
+    await this.participantRepository.delete({ eventId: id });
     await this.sportEventRepository.remove(event);
   }
 
@@ -272,7 +283,12 @@ export class SportEventsService {
       }
     }
 
-    return await this.participantRepository.save(participant);
+    const saved = await this.participantRepository.save(participant);
+    const eventType = participant.event?.type ?? event?.type;
+    if (eventType === SportEventType.TRAINING) {
+      await this.financeService.syncTrainingChargesFromExpenses(eventId);
+    }
+    return saved;
   }
 
   async removeParticipant(eventId: number, userId: number): Promise<void> {

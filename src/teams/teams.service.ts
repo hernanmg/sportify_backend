@@ -572,6 +572,11 @@ export class TeamsService {
       }
 
       const opt = byTeam.get(team.id)!;
+      const mapped = mapTeamWithCategories(team);
+      if ((mapped.categoryNames?.length ?? 0) > opt.categories.length) {
+        opt.categories = mapped.categoryNames ?? opt.categories;
+        opt.categoryIds = mapped.categoryIds ?? opt.categoryIds;
+      }
       const label = entry.categoryRef?.name ?? entry.category;
       if (label && !opt.categories.includes(label)) {
         opt.categories.push(label);

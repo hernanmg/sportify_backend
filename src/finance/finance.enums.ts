@@ -31,9 +31,11 @@ export enum LedgerEntryType {
 
 export enum LedgerCategory {
   MONTHLY_FEE = 'monthly_fee',
+  TRAINING = 'training',
   SPONSOR = 'sponsor',
   REGISTRATION = 'registration',
   EQUIPMENT = 'equipment',
   MATCH = 'match',
   OTHER = 'other',
 }
+

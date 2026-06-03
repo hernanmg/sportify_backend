@@ -12,6 +12,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { TeamsService } from './teams.service';
+import { TeamDashboardService } from './team-dashboard.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
   TeamOnboardingDto,
@@ -26,6 +27,7 @@ import { TeamSocialGuest } from '../events/entities/team-social-guest.entity';
 export class TeamsController {
   constructor(
     private readonly teamsService: TeamsService,
+    private readonly teamDashboardService: TeamDashboardService,
     @InjectRepository(TeamSocialGuest)
     private readonly teamSocialGuestRepository: Repository<TeamSocialGuest>,
   ) {}
@@ -71,6 +73,19 @@ export class TeamsController {
   @UseGuards(AuthGuard('jwt'))
   findMyTeams(@Request() req: { user: { id: number } }) {
     return this.teamsService.findMyTeams(req.user.id);
+  }
+
+  @Get(':teamId/admin-panel')
+  @UseGuards(AuthGuard('jwt'))
+  getAdminPanel(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    return this.teamDashboardService.getDashboard(
+      teamId,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Get('search')

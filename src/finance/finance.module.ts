@@ -9,6 +9,9 @@ import { LedgerEntry } from './entities/ledger-entry.entity';
 import { RosterModule } from 'src/roster/roster.module';
 import { TeamsModule } from 'src/teams/teams.module';
 import { PaymentReceiptStorage } from './payment-receipt.storage';
+import { SportEvent } from '../events/entities/sport-event.entity';
+import { EventParticipant } from '../events/entities/event-participant.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -17,9 +20,12 @@ import { PaymentReceiptStorage } from './payment-receipt.storage';
       PlayerPayment,
       PaymentAllocation,
       LedgerEntry,
+      SportEvent,
+      EventParticipant,
     ]),
     RosterModule,
     forwardRef(() => TeamsModule),
+    forwardRef(() => NotificationsModule),
   ],
   controllers: [FinanceController],
   providers: [FinanceService, PaymentReceiptStorage],

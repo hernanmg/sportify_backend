@@ -90,10 +90,15 @@ export class NotificationsService {
 
     const savedNotifications = await this.notificationRepository.save(notifications);
 
-    // Enviar las que no están programadas
+    // Enviar en segundo plano para no bloquear la respuesta HTTP
     for (const notification of savedNotifications) {
       if (!notification.scheduledFor) {
-        await this.sendNotification(notification);
+        void this.sendNotification(notification).catch((err) =>
+          console.error(
+            `❌ Error enviando notificación ${notification.id}:`,
+            err,
+          ),
+        );
       }
     }
 
@@ -189,7 +194,10 @@ export class NotificationsService {
       .map(roster => roster.player?.user?.id)
       .filter((id): id is number => id !== undefined);
 
-    const userIds = [...new Set([...rosterUserIds, ...additionalUserIds])];
+    const userIds =
+      additionalUserIds.length > 0
+        ? [...new Set(additionalUserIds)]
+        : [...new Set(rosterUserIds)];
 
     if (userIds.length === 0) {
       return [];

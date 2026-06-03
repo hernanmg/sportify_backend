@@ -20,6 +20,11 @@ import {
   TacticalBoardsPublicController,
 } from './tactical-boards.controller';
 import { PlayerStatusModule } from '../player-status/player-status.module';
+import { SportEvent } from '../events/entities/sport-event.entity';
+import { EventParticipant } from '../events/entities/event-participant.entity';
+import { LedgerEntry } from '../finance/entities/ledger-entry.entity';
+import { FinanceModule } from '../finance/finance.module';
+import { TeamDashboardService } from './team-dashboard.service';
 
 @Module({
   imports: [
@@ -36,15 +41,19 @@ import { PlayerStatusModule } from '../player-status/player-status.module';
       Category,
       TeamSocialGuest,
       TeamTacticalBoard,
+      SportEvent,
+      EventParticipant,
+      LedgerEntry,
     ]),
     forwardRef(() => PlayerStatusModule),
+    forwardRef(() => FinanceModule),
   ],
   controllers: [
     TeamsController,
     TacticalBoardsController,
     TacticalBoardsPublicController,
   ],
-  providers: [TeamsService, TacticalBoardsService],
+  providers: [TeamsService, TacticalBoardsService, TeamDashboardService],
   exports: [TeamsService, TacticalBoardsService],
 })
 export class TeamsModule {}

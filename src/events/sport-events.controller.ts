@@ -93,7 +93,7 @@ export class SportEventsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin', 'dt', 'team_captain')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.sportEventsService.remove(id);

@@ -27,6 +27,19 @@ import { RosterService } from 'src/roster/roster.service';
 import { PlayerRoster } from 'src/roster/entities/player-roster.entity';
 import { TeamsService } from 'src/teams/teams.service';
 import {
+  SportEvent,
+  SportEventType,
+} from '../events/entities/sport-event.entity';
+import {
+  EventParticipant,
+  ParticipantStatus,
+} from '../events/entities/event-participant.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationPriority, NotificationType } from '../notifications/entities/notification.entity';
+import { GenerateMonthlyQuotaDto } from './dtos/generate-monthly-quota.dto';
+import { OpenTrainingCollectionDto } from './dtos/open-training-collection.dto';
+import { CreateTrainingExpenseDto } from './dtos/create-training-expense.dto';
+import {
   PaymentReceiptStorage,
   ReceiptUploadFile,
 } from './payment-receipt.storage';
@@ -45,7 +58,25 @@ export class FinanceService {
     private readonly rosterService: RosterService,
     private readonly teamsService: TeamsService,
     private readonly receiptStorage: PaymentReceiptStorage,
+    @InjectRepository(SportEvent)
+    private readonly sportEventRepository: Repository<SportEvent>,
+    @InjectRepository(EventParticipant)
+    private readonly participantRepository: Repository<EventParticipant>,
+    private readonly notificationsService: NotificationsService,
   ) {}
+
+  private async assertTeamMember(
+    userId: number,
+    teamId: number,
+    globalRole?: string,
+  ): Promise<void> {
+    const elevated = ['super_admin', 'manager'];
+    if (globalRole && elevated.includes(globalRole)) return;
+    const member = await this.teamsService.isTeamMember(userId, teamId);
+    if (!member) {
+      throw new ForbiddenException('No pertenecés a este equipo');
+    }
+  }
 
   mapPaymentResponse(payment: PlayerPayment) {
     const user = payment.user;
@@ -343,6 +374,20 @@ export class FinanceService {
       await this.paymentRepository.save(saved);
     }
 
+    let trainingAutoConfirmed = false;
+    if (dto.feeChargeIds?.length) {
+      const linked = await this.feeChargeRepository.find({
+        where: { id: In(dto.feeChargeIds) },
+      });
+      trainingAutoConfirmed =
+        linked.length > 0 &&
+        linked.every((c) => c.type === FeeChargeType.TRAINING);
+    }
+
+    if (trainingAutoConfirmed) {
+      await this.confirmPayment(saved.id, userId);
+    }
+
     return this.mapPaymentResponse(
       (await this.paymentRepository.findOne({
         where: { id: saved.id },
@@ -472,10 +517,18 @@ export class FinanceService {
     );
 
     if (allocatedTotal > 0) {
+      const chargeTypes = await this.feeChargeRepository.find({
+        where: { id: In(allocations.map((a) => a.feeChargeId)) },
+      });
+      const hasTraining = chargeTypes.some(
+        (c) => c.type === FeeChargeType.TRAINING,
+      );
       const ledger = this.ledgerRepository.create({
         teamId: dto.teamId,
         type: LedgerEntryType.INCOME,
-        category: LedgerCategory.MONTHLY_FEE,
+        category: hasTraining
+          ? LedgerCategory.TRAINING
+          : LedgerCategory.MONTHLY_FEE,
         amount: allocatedTotal,
         description: `Pago de jugador #${dto.userId}`,
         userId: dto.userId,
@@ -714,5 +767,480 @@ export class FinanceService {
       relations: ['user'],
       order: { dueDate: 'DESC', id: 'DESC' },
     });
+  }
+
+  async generateMonthlyQuota(dto: GenerateMonthlyQuotaDto, createdBy?: number) {
+    const monthNames = [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
+    const concept = `Cuota ${monthNames[dto.month - 1]} ${dto.year}`;
+    const dueDate = new Date(dto.year, dto.month, 0);
+
+    return this.generateFeeBatch(
+      {
+        teamId: dto.teamId,
+        concept,
+        amount: dto.amount,
+        dueDate: dueDate.toISOString().slice(0, 10),
+        season: dto.season,
+        type: FeeChargeType.MONTHLY_QUOTA,
+      },
+      createdBy,
+    );
+  }
+
+  async getQuotaOverview(
+    teamId: number,
+    userId: number,
+    globalRole?: string,
+    conceptPrefix?: string,
+  ) {
+    await this.assertTeamMember(userId, teamId, globalRole);
+
+    const charges = await this.feeChargeRepository.find({
+      where: { teamId, type: FeeChargeType.MONTHLY_QUOTA },
+      relations: ['user'],
+      order: { createdAt: 'DESC' },
+    });
+
+    let filtered = charges;
+    if (conceptPrefix) {
+      filtered = charges.filter((c) =>
+        c.concept.toLowerCase().includes(conceptPrefix.toLowerCase()),
+      );
+    } else {
+      const latestConcept = charges[0]?.concept;
+      if (latestConcept) {
+        filtered = charges.filter((c) => c.concept === latestConcept);
+      }
+    }
+
+    const byUser = new Map<
+      number,
+      {
+        userId: number;
+        userName: string;
+        totalCharged: number;
+        totalPaid: number;
+        balance: number;
+        status: FeeChargeStatus;
+      }
+    >();
+
+    for (const c of filtered) {
+      const name = c.user
+        ? [c.user.firstName, c.user.lastName].filter(Boolean).join(' ').trim() ||
+          c.user.username
+        : `Usuario ${c.userId}`;
+      const existing = byUser.get(c.userId);
+      const amount = this.toNumber(c.amount);
+      const paid = this.toNumber(c.paidAmount);
+      if (existing) {
+        existing.totalCharged += amount;
+        existing.totalPaid += paid;
+        existing.balance = existing.totalCharged - existing.totalPaid;
+        if (existing.balance > 0.01) {
+          existing.status =
+            existing.totalPaid > 0
+              ? FeeChargeStatus.PARTIAL
+              : FeeChargeStatus.PENDING;
+        } else {
+          existing.status = FeeChargeStatus.PAID;
+        }
+      } else {
+        byUser.set(c.userId, {
+          userId: c.userId,
+          userName: name ?? `Usuario ${c.userId}`,
+          totalCharged: amount,
+          totalPaid: paid,
+          balance: amount - paid,
+          status: c.status,
+        });
+      }
+    }
+
+    const players = Array.from(byUser.values()).sort(
+      (a, b) => b.balance - a.balance,
+    );
+
+    const totalCharged = players.reduce((s, p) => s + p.totalCharged, 0);
+    const totalPaid = players.reduce((s, p) => s + p.totalPaid, 0);
+
+    return {
+      teamId,
+      concept: filtered[0]?.concept ?? null,
+      totalCharged,
+      totalPaid,
+      totalOutstanding: Math.max(0, totalCharged - totalPaid),
+      playersCount: players.length,
+      paidCount: players.filter((p) => p.balance <= 0.01).length,
+      pendingCount: players.filter((p) => p.balance > 0.01).length,
+      players,
+    };
+  }
+
+  async sendQuotaReminders(
+    teamId: number,
+    managerId: number,
+    globalRole?: string,
+    concept?: string,
+  ) {
+    const overview = await this.getQuotaOverview(
+      teamId,
+      managerId,
+      globalRole,
+      concept,
+    );
+    const debtors = overview.players.filter((p) => p.balance > 0.01);
+    if (!debtors.length) {
+      return { sent: 0, message: 'No hay cuotas pendientes' };
+    }
+
+    await this.notificationsService.createBulkNotifications({
+      userIds: debtors.map((d) => d.userId),
+      teamId,
+      type: NotificationType.PAYMENT_REMINDER,
+      priority: NotificationPriority.HIGH,
+      title: 'Cuota pendiente',
+      message: `Recordá abonar ${overview.concept ?? 'la cuota del mes'}. Revisá el estado de cuotas en la app.`,
+      data: {
+        action: 'open_finance',
+        teamId,
+        concept: overview.concept,
+      },
+    });
+
+    return { sent: debtors.length, concept: overview.concept };
+  }
+
+  async getPlayerFeeHistory(
+    targetUserId: number,
+    teamId: number,
+    viewerId: number,
+    globalRole?: string,
+  ) {
+    await this.assertTeamMember(viewerId, teamId, globalRole);
+
+    const charges = await this.feeChargeRepository.find({
+      where: { teamId, userId: targetUserId },
+      order: { createdAt: 'DESC' },
+    });
+
+    const payments = await this.paymentRepository.find({
+      where: { teamId, userId: targetUserId },
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      userId: targetUserId,
+      teamId,
+      charges,
+      payments: payments.map((p) => this.mapPaymentResponse(p)),
+    };
+  }
+
+  async openTrainingCollection(
+    eventId: number,
+    dto: OpenTrainingCollectionDto,
+    createdBy: number,
+    globalRole?: string,
+  ) {
+    const event = await this.sportEventRepository.findOne({
+      where: { id: eventId },
+      relations: ['participants', 'participants.user'],
+    });
+    if (!event || event.type !== SportEventType.TRAINING) {
+      throw new BadRequestException('El evento debe ser un entrenamiento');
+    }
+
+    const isAdmin = await this.teamsService.isTeamAdmin(
+      createdBy,
+      event.teamId,
+    );
+    const elevated = ['super_admin', 'manager', 'admin', 'team_captain', 'dt'];
+    if (!isAdmin && !(globalRole && elevated.includes(globalRole))) {
+      throw new ForbiddenException(
+        'Solo el cuerpo técnico puede abrir cobro de entrenamiento',
+      );
+    }
+
+    const existing = await this.feeChargeRepository.count({
+      where: { sportEventId: eventId },
+    });
+    if (existing > 0) {
+      throw new BadRequestException(
+        'Ya se abrió el cobro para este entrenamiento',
+      );
+    }
+
+    const targets = (event.participants ?? []).filter(
+      (p) => p.status === ParticipantStatus.CONFIRMED || p.attended === true,
+    );
+    if (!targets.length) {
+      targets.push(
+        ...(event.participants ?? []).filter(
+          (p) => p.status !== ParticipantStatus.DECLINED,
+        ),
+      );
+    }
+
+    const concept = `Entrenamiento ${event.eventDate.toLocaleDateString('es-AR')}`;
+    const charges: FeeCharge[] = [];
+
+    for (const p of targets) {
+      const charge = this.feeChargeRepository.create({
+        teamId: event.teamId,
+        userId: p.userId,
+        type: FeeChargeType.TRAINING,
+        concept,
+        amount: dto.amountPerPlayer,
+        paidAmount: 0,
+        status: FeeChargeStatus.PENDING,
+        sportEventId: eventId,
+        season: this.currentSeason(),
+        createdBy,
+      });
+      charges.push(await this.feeChargeRepository.save(charge));
+    }
+
+    const meta = {
+      ...(event.metadata ?? {}),
+      trainingCollection: {
+        amountPerPlayer: dto.amountPerPlayer,
+        openedAt: new Date().toISOString(),
+        notes: dto.notes,
+      },
+    };
+    await this.sportEventRepository.update(eventId, { metadata: meta });
+
+    return {
+      eventId,
+      concept,
+      amountPerPlayer: dto.amountPerPlayer,
+      chargesCreated: charges.length,
+      charges,
+    };
+  }
+
+  async getTrainingCollection(
+    eventId: number,
+    userId: number,
+    globalRole?: string,
+  ) {
+    const event = await this.sportEventRepository.findOne({
+      where: { id: eventId },
+      relations: ['participants'],
+    });
+    if (!event || event.type !== SportEventType.TRAINING) {
+      throw new NotFoundException('Entrenamiento no encontrado');
+    }
+    await this.assertTeamMember(userId, event.teamId, globalRole);
+
+    const { total, items } = await this.sumTrainingEventExpenses(
+      event.teamId,
+      eventId,
+    );
+
+    const charges = await this.feeChargeRepository.find({
+      where: { sportEventId: eventId },
+      relations: ['user'],
+      order: { userId: 'ASC' },
+    });
+
+    const confirmedCount = (event.participants ?? []).filter(
+      (p) => p.status === ParticipantStatus.CONFIRMED,
+    ).length;
+
+    return {
+      eventId,
+      teamId: event.teamId,
+      title: event.title,
+      eventDate: event.eventDate.toISOString(),
+      totalExpense: total,
+      confirmedCount,
+      expenses: items.map((e) => ({
+        id: e.id,
+        amount: this.toNumber(e.amount),
+        description: e.description,
+        createdAt: e.createdAt,
+      })),
+      amountPerPlayer: charges[0]
+        ? this.toNumber(charges[0].amount)
+        : event.metadata?.trainingCollection?.amountPerPlayer ?? null,
+      metadata: event.metadata?.trainingCollection ?? null,
+      players: charges.map((c) => ({
+        userId: c.userId,
+        userName: c.user
+          ? [c.user.firstName, c.user.lastName].filter(Boolean).join(' ').trim() ||
+            c.user.username
+          : `Usuario ${c.userId}`,
+        chargeId: c.id,
+        amount: this.toNumber(c.amount),
+        paidAmount: this.toNumber(c.paidAmount),
+        status: c.status,
+        balance: this.toNumber(c.amount) - this.toNumber(c.paidAmount),
+      })),
+      summary: {
+        total: charges.length,
+        paid: charges.filter((c) => c.status === FeeChargeStatus.PAID).length,
+        pending: charges.filter(
+          (c) =>
+            c.status === FeeChargeStatus.PENDING ||
+            c.status === FeeChargeStatus.PARTIAL,
+        ).length,
+      },
+    };
+  }
+
+  async createTrainingExpense(
+    dto: CreateTrainingExpenseDto,
+    createdBy?: number,
+  ) {
+    const event = await this.sportEventRepository.findOne({
+      where: { id: dto.sportEventId, teamId: dto.teamId },
+    });
+    if (!event || event.type !== SportEventType.TRAINING) {
+      throw new BadRequestException(
+        'El gasto debe asociarse a un entrenamiento del equipo',
+      );
+    }
+
+    const entry = this.ledgerRepository.create({
+      teamId: dto.teamId,
+      type: LedgerEntryType.EXPENSE,
+      category: LedgerCategory.TRAINING,
+      amount: dto.amount,
+      description: dto.description,
+      referenceType: 'sport_event',
+      referenceId: dto.sportEventId,
+      createdBy,
+    });
+    const saved = await this.ledgerRepository.save(entry);
+    await this.syncTrainingChargesFromExpenses(dto.sportEventId, createdBy);
+    return saved;
+  }
+
+  private async sumTrainingEventExpenses(
+    teamId: number,
+    eventId: number,
+  ): Promise<{ total: number; items: LedgerEntry[] }> {
+    const items = await this.ledgerRepository.find({
+      where: {
+        teamId,
+        type: LedgerEntryType.EXPENSE,
+        category: LedgerCategory.TRAINING,
+        referenceType: 'sport_event',
+        referenceId: eventId,
+      },
+      order: { createdAt: 'ASC' },
+    });
+    const total = items.reduce((s, e) => s + this.toNumber(e.amount), 0);
+    return { total, items };
+  }
+
+  /** Reparte gastos del entreno entre jugadores con confirmación asistencia. */
+  async syncTrainingChargesFromExpenses(
+    eventId: number,
+    createdBy?: number,
+  ) {
+    const event = await this.sportEventRepository.findOne({
+      where: { id: eventId },
+      relations: ['participants', 'participants.user'],
+    });
+    if (!event || event.type !== SportEventType.TRAINING) {
+      return { eventId, totalExpense: 0, confirmedCount: 0, amountPerPlayer: 0 };
+    }
+
+    const { total, items } = await this.sumTrainingEventExpenses(
+      event.teamId,
+      eventId,
+    );
+
+    const confirmed = (event.participants ?? []).filter(
+      (p) => p.status === ParticipantStatus.CONFIRMED,
+    );
+    const splitCount = confirmed.length;
+    const amountPerPlayer =
+      splitCount > 0 && total > 0
+        ? Math.round((total / splitCount) * 100) / 100
+        : 0;
+
+    const concept = `Entrenamiento ${event.eventDate.toLocaleDateString('es-AR')}`;
+    const confirmedUserIds = new Set(confirmed.map((p) => p.userId));
+
+    if (total > 0 && splitCount > 0) {
+      for (const p of confirmed) {
+        let charge = await this.feeChargeRepository.findOne({
+          where: { sportEventId: eventId, userId: p.userId },
+        });
+        if (charge) {
+          charge.amount = amountPerPlayer;
+          charge.concept = concept;
+          charge.status = this.resolveChargeStatus(
+            amountPerPlayer,
+            this.toNumber(charge.paidAmount),
+          );
+        } else {
+          charge = this.feeChargeRepository.create({
+            teamId: event.teamId,
+            userId: p.userId,
+            type: FeeChargeType.TRAINING,
+            concept,
+            amount: amountPerPlayer,
+            paidAmount: 0,
+            status: FeeChargeStatus.PENDING,
+            sportEventId: eventId,
+            season: this.currentSeason(),
+            createdBy,
+          });
+        }
+        await this.feeChargeRepository.save(charge);
+      }
+    }
+
+    const existingCharges = await this.feeChargeRepository.find({
+      where: { sportEventId: eventId },
+    });
+    for (const c of existingCharges) {
+      if (!confirmedUserIds.has(c.userId)) {
+        await this.feeChargeRepository.remove(c);
+      }
+    }
+
+    const meta = {
+      ...(event.metadata ?? {}),
+      trainingCollection: {
+        totalExpense: total,
+        amountPerPlayer: splitCount > 0 ? amountPerPlayer : null,
+        confirmedCount: splitCount,
+        expenseCount: items.length,
+        syncedAt: new Date().toISOString(),
+      },
+    };
+    await this.sportEventRepository.update(eventId, { metadata: meta });
+
+    return {
+      eventId,
+      totalExpense: total,
+      confirmedCount: splitCount,
+      amountPerPlayer: splitCount > 0 ? amountPerPlayer : null,
+      expenses: items.map((e) => ({
+        id: e.id,
+        amount: this.toNumber(e.amount),
+        description: e.description,
+        createdAt: e.createdAt,
+      })),
+    };
   }
 }

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In } from 'typeorm';
 import { PlayerRoster } from './entities/player-roster.entity';
@@ -9,6 +15,7 @@ import { Team } from '../teams/entities/teams.entity';
 import { User } from '../users/entities/user.entity';
 import { Category } from '../categories/entities/category.entity';
 import { TeamCategory } from '../teams/entities/team-category.entity';
+import { TeamMember } from '../teams/entities/team-member.entity';
 
 @Injectable()
 export class RosterService {
@@ -25,7 +32,62 @@ export class RosterService {
     private readonly categoryRepository: Repository<Category>,
     @InjectRepository(TeamCategory)
     private readonly teamCategoryRepository: Repository<TeamCategory>,
+    @InjectRepository(TeamMember)
+    private readonly teamMemberRepository: Repository<TeamMember>,
   ) {}
+
+  private isElevatedRole(globalRole?: string): boolean {
+    return (
+      !!globalRole &&
+      ['super_admin', 'manager', 'admin', 'team_captain', 'dt'].includes(
+        globalRole,
+      )
+    );
+  }
+
+  private async getUserCategoryIdsOnTeam(
+    userId: number,
+    teamId: number,
+  ): Promise<number[]> {
+    const rows = await this.rosterRepository
+      .createQueryBuilder('pr')
+      .innerJoin('pr.player', 'p')
+      .where('pr.team_id = :teamId', { teamId })
+      .andWhere('p.user_id = :userId', { userId })
+      .getMany();
+    return [
+      ...new Set(
+        rows.map((r) => r.categoryId).filter((id): id is number => !!id),
+      ),
+    ];
+  }
+
+  private async countRosterRowsForUser(
+    userId: number,
+    teamId: number,
+  ): Promise<number> {
+    return this.rosterRepository
+      .createQueryBuilder('pr')
+      .innerJoin('pr.player', 'p')
+      .where('pr.team_id = :teamId', { teamId })
+      .andWhere('p.user_id = :userId', { userId })
+      .getCount();
+  }
+
+  private async assertCanViewTeamRoster(
+    userId: number,
+    teamId: number,
+    globalRole?: string,
+  ): Promise<void> {
+    if (this.isElevatedRole(globalRole)) return;
+    const member = await this.teamMemberRepository.findOne({
+      where: { userId, teamId },
+    });
+    if (member) return;
+    const onRoster = await this.countRosterRowsForUser(userId, teamId);
+    if (onRoster > 0) return;
+    throw new ForbiddenException('No pertenecés a este equipo');
+  }
 
   private async resolveCategoryForTeam(
     teamId: number,
@@ -196,25 +258,56 @@ export class RosterService {
     teamId: number,
     season?: string,
     categoryIds?: number[],
+    userId?: number,
+    globalRole?: string,
   ): Promise<PlayerRoster[]> {
     try {
-      const whereCondition: Record<string, unknown> = { teamId };
-      if (season) {
-        whereCondition.season = season;
-      }
-      if (categoryIds?.length) {
-        whereCondition.categoryId = In(categoryIds);
+      if (userId != null) {
+        await this.assertCanViewTeamRoster(userId, teamId, globalRole);
       }
 
-      const rosters = await this.rosterRepository.find({
-        where: whereCondition,
-        relations: ['player', 'player.user', 'team', 'categoryRef'],
-        order: { jerseyNumber: 'ASC' }
-      });
+      let effectiveCategoryIds = categoryIds;
+      if (userId != null && !this.isElevatedRole(globalRole)) {
+        const onRoster = await this.countRosterRowsForUser(userId, teamId);
+        const member = await this.teamMemberRepository.findOne({
+          where: { userId, teamId },
+        });
+        // Jugadores y miembros del plantel ven la lista de buena fe completa del equipo
+        if (onRoster > 0 || member) {
+          effectiveCategoryIds = categoryIds?.length ? categoryIds : undefined;
+        } else {
+          const mine = await this.getUserCategoryIdsOnTeam(userId, teamId);
+          if (mine.length) {
+            effectiveCategoryIds = effectiveCategoryIds?.length
+              ? effectiveCategoryIds.filter((id) => mine.includes(id))
+              : mine;
+          }
+        }
+      }
+
+      const load = async (seasonFilter?: string) => {
+        const whereCondition: Record<string, unknown> = { teamId };
+        if (seasonFilter) {
+          whereCondition.season = seasonFilter;
+        }
+        if (effectiveCategoryIds?.length) {
+          whereCondition.categoryId = In(effectiveCategoryIds);
+        }
+        return this.rosterRepository.find({
+          where: whereCondition,
+          relations: ['player', 'player.user', 'team', 'categoryRef'],
+          order: { jerseyNumber: 'ASC' },
+        });
+      };
+
+      let rosters = await load(season);
+      if (season && rosters.length === 0) {
+        rosters = await load(undefined);
+      }
       return rosters || [];
     } catch (error) {
       console.error('Error in findByTeam rosters:', error);
-      return [];
+      throw error;
     }
   }
 

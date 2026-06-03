@@ -93,6 +93,7 @@ INSERT INTO roles (name, description) VALUES
 ('super_admin', 'Administrador del sistema con acceso total'),
 ('manager', 'Administrador de liga/torneo - gestiona equipos y usuarios'),
 ('team_captain', 'Capitán de equipo - gestiona su equipo y jugadores'),
+('dt', 'Director técnico - gestión deportiva del equipo'),
 ('player', 'Jugador activo de un equipo'),
 ('guest', 'Usuario básico sin equipo asignado');
 

@@ -100,7 +100,18 @@ export interface PostMatchResponse {
     jerseyNumber: number | null;
     officialScore: number | null;
     teamAvgScore: number | null;
+    combinedScore: number | null;
   } | null;
+  /** Empate en el puntaje máximo (sin definición manual del DT). */
+  playerOfMatchTied: Array<{
+    userId: number;
+    userName: string;
+    avatarUrl: string | null;
+    jerseyNumber: number | null;
+    officialScore: number | null;
+    teamAvgScore: number | null;
+    combinedScore: number | null;
+  }>;
   formation: string | null;
   lineupSlots: Record<string, { x: number; y: number }>;
   boardStrokes: Array<{
@@ -314,22 +325,28 @@ export class PostMatchService {
     });
 
     targets.sort((a, b) => {
-      const sa = a.officialScore ?? a.teamAvgScore ?? 0;
-      const sb = b.officialScore ?? b.teamAvgScore ?? 0;
+      const sa = this.combinedScore(a) ?? 0;
+      const sb = this.combinedScore(b) ?? 0;
       return sb - sa;
     });
 
-    const playerOfMatch = await this.resolvePlayerOfMatch(
-      event,
-      targets,
-      officialRatings,
-    );
+    const { selected: playerOfMatch, tied: playerOfMatchTied } =
+      await this.resolvePlayerOfMatch(event, targets, officialRatings);
 
     const votingClosed = event.postMatchVotingClosed;
+    const isConvokedVoter = participants.some(
+      (p) => p.userId === userId && p.isConvoked,
+    );
+    const othersToRate = rateableIds.filter((id) => id !== userId);
+    const votesGiven = myPeerVotes.filter((v) =>
+      othersToRate.includes(v.ratedUserId),
+    ).length;
     const canVote =
       postMatchOpen &&
       !votingClosed &&
-      rateableIds.length > 0;
+      othersToRate.length > 0 &&
+      isConvokedVoter &&
+      votesGiven < othersToRate.length;
 
     const playerStatsRows = await this.playerStatsRepository.find({
       where: { sportEventId: eventId },
@@ -387,9 +404,10 @@ export class PostMatchService {
       canVote,
       canManage,
       playerOfMatch,
+      playerOfMatchTied,
       targets,
-      myVotesCount: myPeerVotes.length,
-      votesExpected: rateableIds.length,
+      myVotesCount: votesGiven,
+      votesExpected: othersToRate.length,
       currentUserId: userId,
       isCompleted: event.status === SportEventStatus.COMPLETED,
       matchResult: {
@@ -433,31 +451,21 @@ export class PostMatchService {
     return m?.boardStrokes ?? [];
   }
 
-  private async resolvePlayerOfMatch(
-    event: SportEvent,
-    targets: PostMatchPlayerRow[],
-    officialRatings: MatchOfficialRating[],
-  ): Promise<PostMatchResponse['playerOfMatch']> {
-    if (event.status !== SportEventStatus.COMPLETED) {
-      return null;
+  private combinedScore(row: PostMatchPlayerRow): number | null {
+    const parts: number[] = [];
+    if (row.teamAvgScore != null && row.teamAvgScore > 0) {
+      parts.push(row.teamAvgScore);
     }
+    if (row.officialScore != null && row.officialScore > 0) {
+      parts.push(row.officialScore);
+    }
+    if (!parts.length) return null;
+    return Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 10) / 10;
+  }
 
-    let userId = event.playerOfMatchUserId;
-    if (!userId && officialRatings.length > 0) {
-      const best = [...officialRatings].sort((a, b) => b.score - a.score)[0];
-      userId = best.ratedUserId;
-    }
-    if (!userId && targets.length > 0) {
-      const best = [...targets].sort(
-        (a, b) =>
-          (b.officialScore ?? b.teamAvgScore ?? 0) -
-          (a.officialScore ?? a.teamAvgScore ?? 0),
-      )[0];
-      userId = best.userId;
-    }
-    if (!userId) return null;
-    const row = targets.find((t) => t.userId === userId);
-    if (!row) return null;
+  private toPlayerOfMatchDto(
+    row: PostMatchPlayerRow,
+  ): NonNullable<PostMatchResponse['playerOfMatch']> {
     return {
       userId: row.userId,
       userName: row.userName,
@@ -465,7 +473,54 @@ export class PostMatchService {
       jerseyNumber: row.jerseyNumber,
       officialScore: row.officialScore,
       teamAvgScore: row.teamAvgScore,
+      combinedScore: this.combinedScore(row),
     };
+  }
+
+  private async resolvePlayerOfMatch(
+    event: SportEvent,
+    targets: PostMatchPlayerRow[],
+    officialRatings: MatchOfficialRating[],
+  ): Promise<{
+    selected: PostMatchResponse['playerOfMatch'];
+    tied: PostMatchResponse['playerOfMatchTied'];
+  }> {
+    const empty = {
+      selected: null as PostMatchResponse['playerOfMatch'],
+      tied: [] as PostMatchResponse['playerOfMatchTied'],
+    };
+    if (event.status !== SportEventStatus.COMPLETED) {
+      return empty;
+    }
+
+    if (event.playerOfMatchUserId) {
+      const row = targets.find((t) => t.userId === event.playerOfMatchUserId);
+      if (!row) return empty;
+      return { selected: this.toPlayerOfMatchDto(row), tied: [] };
+    }
+
+    const scores = new Map<number, number>();
+    for (const t of targets) {
+      const combined = this.combinedScore(t);
+      if (combined != null && combined > 0) {
+        scores.set(t.userId, combined);
+      }
+    }
+
+    if (!scores.size) return empty;
+
+    const maxScore = Math.max(...scores.values());
+    const topUserIds = [...scores.entries()]
+      .filter(([, s]) => s === maxScore)
+      .map(([id]) => id);
+    const tiedRows = targets
+      .filter((t) => topUserIds.includes(t.userId))
+      .map((t) => this.toPlayerOfMatchDto(t));
+
+    if (tiedRows.length === 1) {
+      return { selected: tiedRows[0], tied: [] };
+    }
+    return { selected: null, tied: tiedRows };
   }
 
   async submitVotes(
@@ -491,9 +546,17 @@ export class PostMatchService {
       throw new BadRequestException('La votación está cerrada');
     }
 
-    const rateableIds = new Set(
-      this.getRateableUserIds(event.participants ?? []),
+    const participants = event.participants ?? [];
+    const isConvokedVoter = participants.some(
+      (p) => p.userId === userId && p.isConvoked,
     );
+    if (!isConvokedVoter) {
+      throw new ForbiddenException(
+        'Solo los jugadores convocados pueden votar',
+      );
+    }
+
+    const rateableIds = new Set(this.getRateableUserIds(participants));
     if (!rateableIds.size) {
       throw new BadRequestException('No hay jugadores para puntuar');
     }
@@ -576,8 +639,11 @@ export class PostMatchService {
       );
     }
     if (pomId == null && dto.ratings.length > 0) {
-      const best = [...dto.ratings].sort((a, b) => b.score - a.score)[0];
-      pomId = best.ratedUserId;
+      const max = Math.max(...dto.ratings.map((r) => r.score));
+      const top = dto.ratings.filter((r) => r.score === max);
+      if (top.length === 1) {
+        pomId = top[0].ratedUserId;
+      }
     }
     if (pomId != null) {
       await this.sportEventRepository.update(eventId, {
@@ -773,7 +839,7 @@ export class PostMatchService {
     const oldStatus = event.status;
     const patch: Partial<SportEvent> = {
       status: SportEventStatus.COMPLETED,
-      postMatchVotingClosed: true,
+      postMatchVotingClosed: false,
     };
     if (dto.teamScore !== undefined) patch.teamScore = dto.teamScore;
     if (dto.opponentScore !== undefined) patch.opponentScore = dto.opponentScore;
@@ -838,8 +904,8 @@ export class PostMatchService {
               sportEventId: event.id,
               type: NotificationType.GENERAL,
               priority: NotificationPriority.HIGH,
-              title: 'Cerrá tu voto',
-              message: `El partido ya finalizó. Te falta completar tu votación (${expected} jugadores).`,
+              title: 'Votá el partido',
+              message: `El partido finalizó. Completá tu votación (${expected} jugadores).`,
               data: {
                 action: 'open_post_match',
                 sportEventId: event.id,

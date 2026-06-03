@@ -12,6 +12,7 @@ import { Team } from 'src/teams/entities/teams.entity';
 import { User } from 'src/users/entities/user.entity';
 import { FeeChargeType, FeeChargeStatus } from '../finance.enums';
 import { PaymentAllocation } from './payment-allocation.entity';
+import { SportEvent } from '../../events/entities/sport-event.entity';
 
 @Entity('fee_charges')
 export class FeeCharge {
@@ -63,6 +64,13 @@ export class FeeCharge {
 
   @Column({ name: 'created_by', nullable: true })
   createdBy?: number;
+
+  @Column({ name: 'sport_event_id', type: 'int', nullable: true })
+  sportEventId?: number;
+
+  @ManyToOne(() => SportEvent, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'sport_event_id' })
+  sportEvent?: SportEvent;
 
   @OneToMany(() => PaymentAllocation, (allocation) => allocation.feeCharge)
   allocations: PaymentAllocation[];
