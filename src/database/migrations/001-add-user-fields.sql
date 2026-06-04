@@ -33,13 +33,26 @@ ADD COLUMN IF NOT EXISTS is_captain BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS injury_status VARCHAR(20) DEFAULT 'healthy',
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
--- Agregar constraints únicos para players
-ALTER TABLE players 
-ADD CONSTRAINT IF NOT EXISTS unique_user_team UNIQUE (user_id, team_id);
+-- Constraints únicos (idempotente; IF NOT EXISTS no es válido en ADD CONSTRAINT)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'unique_user_team'
+  ) THEN
+    ALTER TABLE players
+      ADD CONSTRAINT unique_user_team UNIQUE (user_id, team_id);
+  END IF;
+END $$;
 
--- Agregar constraint para jersey number único por equipo (si no existe)
-ALTER TABLE players 
-ADD CONSTRAINT IF NOT EXISTS unique_jersey_team UNIQUE (team_id, jersey_number);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'unique_jersey_team'
+  ) THEN
+    ALTER TABLE players
+      ADD CONSTRAINT unique_jersey_team UNIQUE (team_id, jersey_number);
+  END IF;
+END $$;
 
 -- Comentarios informativos
 COMMENT ON COLUMN users.estado_registro IS 'Estados: pending, verified, active, suspended';
