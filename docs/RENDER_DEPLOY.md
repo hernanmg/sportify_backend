@@ -77,7 +77,7 @@ No correr migraciones a mano en Neon: lo hace `deploy-db.js` en cada deploy.
 
 ## Render — Web Service
 
-- **Build Command:** `npm ci && npm run build`  
+- **Build Command:** `NPM_CONFIG_PRODUCTION=false npm ci && npm run build`  
 - **Start Command:** `npm run start:render`  
 - **Health check:** `/api` (Swagger)
 
@@ -128,6 +128,8 @@ Estado guardado en tabla `sportify_schema_migrations` (no se re-ejecutan archivo
 
 | Síntoma | Causa |
 |---------|--------|
+| Build falla tras "86 vulnerabilities" | Esa línea es **aviso**, no el error. Mirá líneas **después** (ej. `nest: not found`) |
+| `nest: command not found` | Render instaló sin devDependencies. Usar `NPM_CONFIG_PRODUCTION=false npm ci` |
 | API lenta al primer request | Cold start plan free Render |
 | Login falla | `RUN_DEMO_SEED` o migraciones no corrieron; revisar logs deploy |
 | SSL DB | `DATABASE_URL` debe incluir SSL; el script ya usa `rejectUnauthorized: false` |

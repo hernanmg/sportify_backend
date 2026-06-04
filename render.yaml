@@ -6,7 +6,7 @@ services:
     name: sportify-amateur-api
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci && npm run build
     startCommand: npm run start:render
     healthCheckPath: /api
     envVars:

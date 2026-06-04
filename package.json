@@ -5,6 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "build": "nest build && npm run copy:templates",
     "copy:templates": "node scripts/copy-email-templates.js",
