@@ -25,6 +25,12 @@ import { EventParticipant } from '../events/entities/event-participant.entity';
 import { LedgerEntry } from '../finance/entities/ledger-entry.entity';
 import { FinanceModule } from '../finance/finance.module';
 import { TeamDashboardService } from './team-dashboard.service';
+import { TeamSponsor } from './entities/team-sponsor.entity';
+import { TeamAuditLog } from './entities/team-audit-log.entity';
+import { TeamAuditService } from './team-audit.service';
+import { TeamReportsService } from './team-reports.service';
+import { TeamSponsorsService } from './team-sponsors.service';
+import { RosterModule } from '../roster/roster.module';
 
 @Module({
   imports: [
@@ -44,16 +50,32 @@ import { TeamDashboardService } from './team-dashboard.service';
       SportEvent,
       EventParticipant,
       LedgerEntry,
+      TeamSponsor,
+      TeamAuditLog,
     ]),
     forwardRef(() => PlayerStatusModule),
     forwardRef(() => FinanceModule),
+    forwardRef(() => RosterModule),
   ],
   controllers: [
     TeamsController,
     TacticalBoardsController,
     TacticalBoardsPublicController,
   ],
-  providers: [TeamsService, TacticalBoardsService, TeamDashboardService],
-  exports: [TeamsService, TacticalBoardsService],
+  providers: [
+    TeamsService,
+    TacticalBoardsService,
+    TeamDashboardService,
+    TeamAuditService,
+    TeamReportsService,
+    TeamSponsorsService,
+  ],
+  exports: [
+    TeamsService,
+    TacticalBoardsService,
+    TeamAuditService,
+    TeamReportsService,
+    TeamSponsorsService,
+  ],
 })
 export class TeamsModule {}

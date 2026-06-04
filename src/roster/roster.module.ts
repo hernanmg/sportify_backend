@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RosterService } from './roster.service';
 import { RosterController } from './roster.controller';
@@ -9,9 +9,11 @@ import { User } from '../users/entities/user.entity';
 import { Category } from '../categories/entities/category.entity';
 import { TeamCategory } from '../teams/entities/team-category.entity';
 import { TeamMember } from '../teams/entities/team-member.entity';
+import { TeamsModule } from '../teams/teams.module';
 
 @Module({
   imports: [
+    forwardRef(() => TeamsModule),
     TypeOrmModule.forFeature([
       PlayerRoster,
       Player,

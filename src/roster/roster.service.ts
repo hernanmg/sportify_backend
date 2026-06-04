@@ -1,9 +1,11 @@
 import {
+  Inject,
   Injectable,
   NotFoundException,
   ConflictException,
   BadRequestException,
   ForbiddenException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In } from 'typeorm';
@@ -16,6 +18,7 @@ import { User } from '../users/entities/user.entity';
 import { Category } from '../categories/entities/category.entity';
 import { TeamCategory } from '../teams/entities/team-category.entity';
 import { TeamMember } from '../teams/entities/team-member.entity';
+import { TeamAuditService } from '../teams/team-audit.service';
 
 @Injectable()
 export class RosterService {
@@ -34,6 +37,8 @@ export class RosterService {
     private readonly teamCategoryRepository: Repository<TeamCategory>,
     @InjectRepository(TeamMember)
     private readonly teamMemberRepository: Repository<TeamMember>,
+    @Inject(forwardRef(() => TeamAuditService))
+    private readonly teamAuditService: TeamAuditService,
   ) {}
 
   private isElevatedRole(globalRole?: string): boolean {
@@ -338,8 +343,13 @@ export class RosterService {
     return roster;
   }
 
-  async update(id: number, updateRosterDto: UpdateRosterDto): Promise<PlayerRoster> {
+  async update(
+    id: number,
+    updateRosterDto: UpdateRosterDto,
+    actorUserId?: number,
+  ): Promise<PlayerRoster> {
     const roster = await this.findOne(id);
+    const previousNotes = roster.notes;
 
     // Si se está cambiando el número de camiseta, verificar que no esté ocupado
     if (updateRosterDto.jerseyNumber && updateRosterDto.jerseyNumber !== roster.jerseyNumber) {
@@ -365,9 +375,36 @@ export class RosterService {
     if (updateRosterDto.documentNumber) roster.documentNumber = updateRosterDto.documentNumber;
     if (updateRosterDto.emergencyContact) roster.emergencyContact = updateRosterDto.emergencyContact;
     if (updateRosterDto.medicalStatus) roster.medicalStatus = updateRosterDto.medicalStatus;
-    if (updateRosterDto.notes) roster.notes = updateRosterDto.notes;
+    if (updateRosterDto.notes !== undefined) {
+      roster.notes = updateRosterDto.notes;
+    }
 
-    return await this.rosterRepository.save(roster);
+    const saved = await this.rosterRepository.save(roster);
+
+    if (
+      actorUserId &&
+      updateRosterDto.notes !== undefined &&
+      updateRosterDto.notes !== previousNotes
+    ) {
+      const playerName =
+        [roster.player?.user?.firstName, roster.player?.user?.lastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim() ||
+        roster.player?.user?.email ||
+        `Plantel #${id}`;
+      await this.teamAuditService.log({
+        teamId: roster.teamId,
+        actorUserId,
+        action: 'roster_notes_updated',
+        entityType: 'player_roster',
+        entityId: id,
+        summary: `Notas DT actualizadas para ${playerName}`,
+        metadata: { rosterId: id, season: roster.season },
+      });
+    }
+
+    return saved;
   }
 
   async remove(id: number): Promise<void> {

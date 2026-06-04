@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, LessThanOrEqual, MoreThan } from 'typeorm';
@@ -17,6 +19,7 @@ import {
   AttendanceItemDto,
 } from './dtos/update-event-attendance.dto';
 import { TeamsService } from '../teams/teams.service';
+import { TeamAuditService } from '../teams/team-audit.service';
 import { PlayerRoster } from '../roster/entities/player-roster.entity';
 
 @Injectable()
@@ -29,6 +32,8 @@ export class AttendanceService {
     @InjectRepository(PlayerRoster)
     private readonly rosterRepository: Repository<PlayerRoster>,
     private readonly teamsService: TeamsService,
+    @Inject(forwardRef(() => TeamAuditService))
+    private readonly teamAuditService: TeamAuditService,
   ) {}
 
   private applyStatus(
@@ -112,6 +117,18 @@ export class AttendanceService {
       }
       this.applyStatus(p, item.status, item.notes);
       await this.participantRepository.save(p);
+    }
+
+    if (items.length > 0) {
+      await this.teamAuditService.log({
+        teamId: event.teamId,
+        actorUserId: userId,
+        action: 'attendance_updated',
+        entityType: 'sport_event',
+        entityId: eventId,
+        summary: `Asistencia en «${event.title}»: ${items.length} registro(s)`,
+        metadata: { eventId, count: items.length },
+      });
     }
 
     return this.sportEventRepository.findOne({

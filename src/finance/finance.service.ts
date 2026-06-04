@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -43,6 +45,7 @@ import {
   PaymentReceiptStorage,
   ReceiptUploadFile,
 } from './payment-receipt.storage';
+import { TeamAuditService } from '../teams/team-audit.service';
 
 @Injectable()
 export class FinanceService {
@@ -63,6 +66,8 @@ export class FinanceService {
     @InjectRepository(EventParticipant)
     private readonly participantRepository: Repository<EventParticipant>,
     private readonly notificationsService: NotificationsService,
+    @Inject(forwardRef(() => TeamAuditService))
+    private readonly teamAuditService: TeamAuditService,
   ) {}
 
   private async assertTeamMember(
@@ -309,6 +314,22 @@ export class FinanceService {
         createdBy,
       });
       charges.push(await this.feeChargeRepository.save(charge));
+    }
+
+    if (charges.length > 0) {
+      await this.teamAuditService.log({
+        teamId: dto.teamId,
+        actorUserId: createdBy,
+        action: 'quota_generated',
+        entityType: 'fee_charge',
+        summary: `Cuotas: ${dto.concept} (${charges.length} cargos, temporada ${resolvedSeason})`,
+        metadata: {
+          concept: dto.concept,
+          amount: dto.amount,
+          season: resolvedSeason,
+          count: charges.length,
+        },
+      });
     }
 
     return {

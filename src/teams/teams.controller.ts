@@ -13,6 +13,9 @@ import {
 } from '@nestjs/common';
 import { TeamsService } from './teams.service';
 import { TeamDashboardService } from './team-dashboard.service';
+import { TeamReportsService } from './team-reports.service';
+import { TeamSponsorsService } from './team-sponsors.service';
+import { TeamAuditService } from './team-audit.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
   TeamOnboardingDto,
@@ -28,6 +31,9 @@ export class TeamsController {
   constructor(
     private readonly teamsService: TeamsService,
     private readonly teamDashboardService: TeamDashboardService,
+    private readonly teamReportsService: TeamReportsService,
+    private readonly teamSponsorsService: TeamSponsorsService,
+    private readonly teamAuditService: TeamAuditService,
     @InjectRepository(TeamSocialGuest)
     private readonly teamSocialGuestRepository: Repository<TeamSocialGuest>,
   ) {}
@@ -118,6 +124,57 @@ export class TeamsController {
       data.categoryId,
       req.user.id,
     );
+  }
+
+  @Get(':teamId/reports')
+  @UseGuards(AuthGuard('jwt'))
+  getReports(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Query('season') season?: string,
+  ) {
+    return this.teamReportsService.getSummary(teamId, season);
+  }
+
+  @Get(':teamId/sponsors')
+  @UseGuards(AuthGuard('jwt'))
+  listSponsors(@Param('teamId', ParseIntPipe) teamId: number) {
+    return this.teamSponsorsService.findByTeam(teamId);
+  }
+
+  @Post(':teamId/sponsors')
+  @UseGuards(AuthGuard('jwt'))
+  createSponsor(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Request() req: { user: { id: number } },
+    @Body()
+    body: {
+      name: string;
+      description?: string;
+      logoUrl?: string;
+      website?: string;
+      amountContributed?: number;
+    },
+  ) {
+    return this.teamSponsorsService.create(teamId, body, req.user.id);
+  }
+
+  @Delete(':teamId/sponsors/:sponsorId')
+  @UseGuards(AuthGuard('jwt'))
+  removeSponsor(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('sponsorId', ParseIntPipe) sponsorId: number,
+  ) {
+    return this.teamSponsorsService.remove(sponsorId, teamId);
+  }
+
+  @Get(':teamId/audit-log')
+  @UseGuards(AuthGuard('jwt'))
+  getAuditLog(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Query('limit') limit?: string,
+  ) {
+    const n = limit ? Math.min(parseInt(limit, 10) || 80, 200) : 80;
+    return this.teamAuditService.findByTeam(teamId, n);
   }
 
   @Get(':id/social-guests')
