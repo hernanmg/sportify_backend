@@ -1,0 +1,34 @@
+# Render Blueprint — Sportify Amateur API
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: sportify-amateur-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:render
+    healthCheckPath: /api
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RENDER
+        value: 'true'
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DB_SYNCHRONIZE
+        value: 'false'
+      - key: RUN_SCHEMA_SYNC
+        value: 'true'
+      - key: RUN_DEMO_SEED
+        value: 'true'
+      - key: DB_LOGGING
+        value: 'false'

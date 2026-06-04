@@ -10,11 +10,17 @@ config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
+    : [
+        'http://localhost:3000',
+        /^http:\/\/localhost:\d+$/,
+      ];
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:44941','http://localhost:37209', 'http://127.0.0.1:44711', 'http://localhost:44711',/^http:\/\/localhost:\d+$/], // Ajusta esto según tu frontend
+    origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
 
   // Configuración de Swagger
@@ -28,7 +34,9 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
   app.use(
     session({
-      secret: '62cBBruDLHqvLlVJoZv1Q0n3YWEEn0P94OWDZNX9Yq0=', // Usa una clave segura aquí
+      secret:
+        process.env.SESSION_SECRET ||
+        '62cBBruDLHqvLlVJoZv1Q0n3YWEEn0P94OWDZNX9Yq0=',
       resave: false,
       saveUninitialized: false,
       cookie: { maxAge: 3600000 }, // 1 hora, ajusta según sea necesario

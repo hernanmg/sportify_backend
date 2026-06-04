@@ -13,6 +13,8 @@
     "start:dev": "npm run copy:templates && nest start --debug --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "start:render": "node scripts/deploy-db.js && node scripts/sync-schema.js && node dist/main",
+    "deploy:db": "node scripts/deploy-db.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",

@@ -232,6 +232,7 @@ export class UsersService {
       manager: 80,
       admin: 75,
       team_captain: 60,
+      dt: 65,
       player: 40,
       guest: 10,
     };
