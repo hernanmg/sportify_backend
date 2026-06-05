@@ -27,7 +27,7 @@ export class UsersController {
 
   @Get('for-team/:teamId')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   async findForTeam(@Param('teamId') teamId: string) {
     return this.userService.findUsersForTeam(parseInt(teamId, 10));
   }

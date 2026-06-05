@@ -16,6 +16,7 @@ import {
 import { RosterService } from './roster.service';
 import { CreateRosterDto } from './dtos/create-roster.dto';
 import { UpdateRosterDto } from './dtos/update-roster.dto';
+import { LinkRosterPlayerDto } from './dtos/link-roster-player.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -26,7 +27,7 @@ export class RosterController {
   constructor(private readonly rosterService: RosterService) {}
 
   @Post()
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createRosterDto: CreateRosterDto) {
     return await this.rosterService.create(createRosterDto);
@@ -90,7 +91,7 @@ export class RosterController {
   }
 
   @Get('team/:teamId/available-numbers')
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   async getAvailableJerseyNumbers(
     @Param('teamId') teamId: number,
     @Query('season') season: string
@@ -114,6 +115,20 @@ export class RosterController {
     return await this.rosterService.update(id, updateRosterDto, req.user.id);
   }
 
+  @Patch(':id/link-user')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
+  async linkUser(
+    @Param('id') id: number,
+    @Body() body: LinkRosterPlayerDto,
+    @Request() req: { user: { id: number } },
+  ) {
+    return await this.rosterService.linkPlayerToUser(
+      id,
+      body.userId,
+      req.user.id,
+    );
+  }
+
   @Patch(':id/medical-status')
   @Roles('super_admin', 'manager', 'admin', 'team_captain')
   async updateMedicalStatus(
@@ -124,7 +139,7 @@ export class RosterController {
   }
 
   @Delete(':id')
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: number) {
     await this.rosterService.remove(id);

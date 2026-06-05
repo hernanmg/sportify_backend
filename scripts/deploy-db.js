@@ -36,6 +36,7 @@ const MIGRATION_FILES = [
   'src/database/migrations/019-dt-role.sql',
   'src/database/migrations/020-team-extras.sql',
   'src/database/migrations/021-sponsor-logo-text.sql',
+  'src/database/migrations/022-guest-players.sql',
 ];
 
 const AUX_FILES = ['src/database/render/01-inserts-aux.sql'];

@@ -8,7 +8,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, In } from 'typeorm';
+import { Repository, Not, In, IsNull } from 'typeorm';
 import { PlayerRoster } from './entities/player-roster.entity';
 import { CreateRosterDto } from './dtos/create-roster.dto';
 import { UpdateRosterDto } from './dtos/update-roster.dto';
@@ -154,38 +154,16 @@ export class RosterService {
   }
 
   async create(createRosterDto: CreateRosterDto): Promise<PlayerRoster> {
-    // Verificar que el jugador existe, si no existe, crearlo
-    let player = await this.playerRepository.findOne({
-      where: { id: createRosterDto.playerId }
-    });
-    
-    if (!player) {
-      // Verificar que el usuario existe
-      const user = await this.userRepository.findOne({
-        where: { id: createRosterDto.playerId }
-      });
-      if (!user) {
-        throw new NotFoundException(`Usuario con ID ${createRosterDto.playerId} no encontrado`);
-      }
-      
-      // Crear el registro de Player automáticamente
-      player = this.playerRepository.create({
-        user_id: createRosterDto.playerId,
-        team_id: createRosterDto.teamId,
-        isActive: true,
-        joinedTeamDate: new Date(),
-      });
-      player = await this.playerRepository.save(player);
-    }
-
-    // Verificar que el equipo existe
     const team = await this.teamRepository.findOne({
-      where: { id: createRosterDto.teamId }
+      where: { id: createRosterDto.teamId },
     });
     if (!team) {
-      throw new NotFoundException(`Equipo con ID ${createRosterDto.teamId} no encontrado`);
+      throw new NotFoundException(
+        `Equipo con ID ${createRosterDto.teamId} no encontrado`,
+      );
     }
 
+    const player = await this.resolveOrCreatePlayer(createRosterDto);
     const playerId = player.id;
 
     // Dorsal único por equipo/temporada, salvo otra fila del mismo jugador (multi-categoría)
@@ -243,6 +221,147 @@ export class RosterService {
     });
 
     return await this.rosterRepository.save(roster);
+  }
+
+  private async resolveOrCreatePlayer(
+    dto: CreateRosterDto,
+  ): Promise<Player> {
+    const isGuest =
+      !dto.playerId &&
+      dto.guestFirstName?.trim() &&
+      dto.guestLastName?.trim();
+
+    if (isGuest) {
+      const first = dto.guestFirstName!.trim();
+      const last = dto.guestLastName!.trim();
+      const existingGuest = await this.playerRepository.findOne({
+        where: {
+          team_id: dto.teamId,
+          user_id: IsNull(),
+          guestFirstName: first,
+          guestLastName: last,
+        },
+      });
+      if (existingGuest) {
+        return existingGuest;
+      }
+
+      return this.playerRepository.save(
+        this.playerRepository.create({
+          user_id: null,
+          guestFirstName: first,
+          guestLastName: last,
+          team_id: dto.teamId,
+          isActive: true,
+          joinedTeamDate: new Date(),
+        }),
+      );
+    }
+
+    if (!dto.playerId) {
+      throw new BadRequestException(
+        'Indicá un usuario registrado o nombre y apellido para jugador sin app',
+      );
+    }
+
+    let player = await this.playerRepository.findOne({
+      where: { id: dto.playerId },
+    });
+
+    if (!player) {
+      const user = await this.userRepository.findOne({
+        where: { id: dto.playerId },
+      });
+      if (!user) {
+        throw new NotFoundException(
+          `Usuario con ID ${dto.playerId} no encontrado`,
+        );
+      }
+
+      const existingForUser = await this.playerRepository.findOne({
+        where: { user_id: dto.playerId, team_id: dto.teamId },
+      });
+      if (existingForUser) {
+        return existingForUser;
+      }
+
+      player = this.playerRepository.create({
+        user_id: dto.playerId,
+        team_id: dto.teamId,
+        isActive: true,
+        joinedTeamDate: new Date(),
+      });
+      player = await this.playerRepository.save(player);
+    }
+
+    return player;
+  }
+
+  async linkPlayerToUser(
+    rosterId: number,
+    userId: number,
+    actorUserId?: number,
+  ): Promise<PlayerRoster> {
+    const roster = await this.rosterRepository.findOne({
+      where: { id: rosterId },
+      relations: ['player', 'player.user', 'team'],
+    });
+    if (!roster) {
+      throw new NotFoundException(
+        `Registro de lista de buena fe con ID ${rosterId} no encontrado`,
+      );
+    }
+
+    const player = roster.player;
+    if (!player) {
+      throw new NotFoundException('Jugador no encontrado');
+    }
+    if (player.user_id) {
+      throw new BadRequestException(
+        'Este jugador ya tiene una cuenta vinculada en la app',
+      );
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+    }
+
+    const existingLinked = await this.playerRepository.findOne({
+      where: { user_id: userId, team_id: roster.teamId },
+    });
+    if (existingLinked && existingLinked.id !== player.id) {
+      throw new ConflictException(
+        'Ese usuario ya tiene ficha en este equipo. Unificá o eliminá el registro duplicado.',
+      );
+    }
+
+    const guestName = [player.guestFirstName, player.guestLastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    player.user_id = userId;
+    player.guestFirstName = null;
+    player.guestLastName = null;
+    await this.playerRepository.save(player);
+
+    if (actorUserId) {
+      const userName =
+        [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+        user.email;
+      await this.teamAuditService.log({
+        teamId: roster.teamId,
+        actorUserId,
+        action: 'roster_player_linked',
+        entityType: 'player_roster',
+        entityId: rosterId,
+        summary: `Jugador sin app vinculado a ${userName}${guestName ? ` (antes: ${guestName})` : ''}`,
+        metadata: { rosterId, userId, playerId: player.id },
+      });
+    }
+
+    return this.findOne(rosterId);
   }
 
   async findAll(): Promise<PlayerRoster[]> {
@@ -388,6 +507,10 @@ export class RosterService {
     ) {
       const playerName =
         [roster.player?.user?.firstName, roster.player?.user?.lastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim() ||
+        [roster.player?.guestFirstName, roster.player?.guestLastName]
           .filter(Boolean)
           .join(' ')
           .trim() ||

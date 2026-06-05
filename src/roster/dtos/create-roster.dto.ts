@@ -1,9 +1,32 @@
-import { IsNotEmpty, IsNumber, IsString, IsOptional, IsBoolean, IsDateString, IsIn } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  ValidateIf,
+} from 'class-validator';
 
 export class CreateRosterDto {
+  /** ID de usuario registrado (legacy: también aceptado como user id al crear player). */
+  @ValidateIf((o) => !o.guestFirstName && !o.guestLastName)
   @IsNotEmpty()
   @IsNumber()
-  playerId: number;
+  playerId?: number;
+
+  /** Jugador sin app: nombre de pila. */
+  @ValidateIf((o) => !o.playerId)
+  @IsNotEmpty()
+  @IsString()
+  guestFirstName?: string;
+
+  /** Jugador sin app: apellido. */
+  @ValidateIf((o) => !o.playerId)
+  @IsNotEmpty()
+  @IsString()
+  guestLastName?: string;
 
   @IsNotEmpty()
   @IsNumber()

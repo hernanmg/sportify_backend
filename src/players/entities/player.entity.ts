@@ -18,12 +18,18 @@ export class Player {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  user_id: number;
+  @Column({ name: 'user_id', nullable: true })
+  user_id?: number;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  user?: User;
+
+  @Column({ name: 'guest_first_name', type: 'varchar', length: 80, nullable: true })
+  guestFirstName?: string;
+
+  @Column({ name: 'guest_last_name', type: 'varchar', length: 80, nullable: true })
+  guestLastName?: string;
 
   @Column()
   team_id: number;
