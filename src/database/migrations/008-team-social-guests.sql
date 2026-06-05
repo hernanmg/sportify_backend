@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS team_social_guests (
 
 CREATE INDEX IF NOT EXISTS idx_team_social_guests_team ON team_social_guests(team_id);
 
+ALTER TABLE event_participants
+    ADD COLUMN IF NOT EXISTS included_in_expense_split BOOLEAN NOT NULL DEFAULT TRUE;
+
 -- Pendientes no entran al reparto hasta confirmar
 UPDATE event_participants
 SET included_in_expense_split = FALSE
