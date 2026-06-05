@@ -12,6 +12,28 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
+-- 0) categories + teams.category_id (antes solo TypeORM post-deploy)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    description TEXT,
+    sport_id INTEGER NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
+    age_min INTEGER,
+    age_max INTEGER,
+    gender VARCHAR(20),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_categories_sport_id ON categories(sport_id);
+
+ALTER TABLE teams
+    ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL;
+
+-- ---------------------------------------------------------------------------
 -- 1) Tabla team_categories
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS team_categories (
