@@ -1,5 +1,25 @@
 -- 018: Asistencia unificada, cargos por entrenamiento, categoría ledger training
 
+CREATE TABLE IF NOT EXISTS fee_charges (
+    id SERIAL PRIMARY KEY,
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(30) NOT NULL DEFAULT 'monthly_quota',
+    concept VARCHAR(150) NOT NULL,
+    amount DECIMAL(12, 2) NOT NULL,
+    paid_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    due_date DATE,
+    season VARCHAR(20),
+    created_by INTEGER,
+    sport_event_id INTEGER REFERENCES sport_events(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fee_charges_team_user
+    ON fee_charges(team_id, user_id);
+
 ALTER TABLE event_participants
   ADD COLUMN IF NOT EXISTS attendance_status VARCHAR(20) NULL;
 
