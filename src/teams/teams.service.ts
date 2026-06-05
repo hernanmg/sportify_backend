@@ -368,6 +368,65 @@ export class TeamsService {
     throw new BadRequestException('Modo de onboarding inválido');
   }
 
+  private isPlatformAdminRole(globalRole?: string): boolean {
+    return ['super_admin', 'manager', 'admin'].includes(globalRole ?? '');
+  }
+
+  /** Al crear desde la app, el usuario queda como encargado del equipo (team_members + roster). */
+  async createWithCreator(
+    userId: number,
+    createTeamData: Partial<Team> & { categoryIds?: number[] },
+    globalRole?: string,
+  ) {
+    const categoryIds =
+      createTeamData.categoryIds?.length
+        ? createTeamData.categoryIds
+        : createTeamData.categoryId
+          ? [createTeamData.categoryId]
+          : [];
+
+    const team = await this.create(createTeamData);
+
+    await this.addTeamMember(userId, team.id, TeamMemberRole.ADMIN);
+    if (categoryIds.length) {
+      await this.ensureRosterEntries(userId, team.id, categoryIds);
+    }
+    if (!this.isPlatformAdminRole(globalRole)) {
+      await this.setPrimaryRole(userId, 'manager');
+    }
+    await this.createInvite(team.id, userId, categoryIds);
+
+    return this.findOne(team.id);
+  }
+
+  /** Super admin / manager sin membresía previa: asignarse a un equipo ya creado. */
+  async claimTeamAsAdmin(
+    userId: number,
+    teamId: number,
+    globalRole?: string,
+  ) {
+    if (!this.isPlatformAdminRole(globalRole)) {
+      throw new ForbiddenException(
+        'Solo administradores de la plataforma pueden asignarse como encargado',
+      );
+    }
+
+    const mapped = await this.findOne(teamId);
+    const categoryIds =
+      (mapped as { categoryIds?: number[] }).categoryIds ?? [];
+
+    await this.addTeamMember(userId, teamId, TeamMemberRole.ADMIN);
+    if (categoryIds.length) {
+      await this.ensureRosterEntries(userId, teamId, categoryIds);
+    }
+
+    return {
+      teamId,
+      teamName: mapped.name,
+      message: `Te asignaste como encargado de ${mapped.name}`,
+    };
+  }
+
   async create(createTeamData: Partial<Team> & { categoryIds?: number[] }): Promise<Team> {
     const { categoryIds, ...teamData } = createTeamData;
     const team = await this.teamRepository.save(

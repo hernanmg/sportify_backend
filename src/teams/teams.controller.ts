@@ -64,10 +64,27 @@ export class TeamsController {
   @Post()
   @UseGuards(AuthGuard('jwt'))
   create(
-    @Request() req: { user: { id: number } },
+    @Request() req: { user: { id: number; role?: string } },
     @Body() createTeamData: any,
   ) {
-    return this.teamsService.create(createTeamData);
+    return this.teamsService.createWithCreator(
+      req.user.id,
+      createTeamData,
+      req.user.role,
+    );
+  }
+
+  @Post(':id/claim-admin')
+  @UseGuards(AuthGuard('jwt'))
+  claimAsAdmin(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    return this.teamsService.claimTeamAsAdmin(
+      req.user.id,
+      id,
+      req.user.role,
+    );
   }
 
   @Get()
