@@ -27,7 +27,7 @@ export class TeamSponsor {
   @Column({ type: 'text', nullable: true })
   description?: string;
 
-  @Column({ name: 'logo_url', length: 500, nullable: true })
+  @Column({ name: 'logo_url', type: 'text', nullable: true })
   logoUrl?: string;
 
   @Column({ length: 300, nullable: true })

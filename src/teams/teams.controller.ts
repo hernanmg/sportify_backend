@@ -175,6 +175,23 @@ export class TeamsController {
     return this.teamSponsorsService.create(teamId, body, req.user.id);
   }
 
+  @Patch(':teamId/sponsors/:sponsorId')
+  @UseGuards(AuthGuard('jwt'))
+  updateSponsor(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('sponsorId', ParseIntPipe) sponsorId: number,
+    @Body()
+    body: {
+      name?: string;
+      description?: string;
+      logoUrl?: string;
+      website?: string;
+      amountContributed?: number;
+    },
+  ) {
+    return this.teamSponsorsService.update(sponsorId, teamId, body);
+  }
+
   @Delete(':teamId/sponsors/:sponsorId')
   @UseGuards(AuthGuard('jwt'))
   removeSponsor(

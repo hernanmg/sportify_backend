@@ -36,6 +36,23 @@ export class TeamSponsorsService {
     return this.sponsorRepository.save(row);
   }
 
+  async update(
+    id: number,
+    teamId: number,
+    data: {
+      name?: string;
+      description?: string;
+      logoUrl?: string;
+      website?: string;
+      amountContributed?: number;
+    },
+  ) {
+    const row = await this.sponsorRepository.findOne({ where: { id, teamId } });
+    if (!row) throw new NotFoundException('Sponsor no encontrado');
+    Object.assign(row, data);
+    return this.sponsorRepository.save(row);
+  }
+
   async remove(id: number, teamId: number) {
     const row = await this.sponsorRepository.findOne({ where: { id, teamId } });
     if (!row) throw new NotFoundException('Sponsor no encontrado');
