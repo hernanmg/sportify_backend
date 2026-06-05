@@ -13,7 +13,7 @@ export class Sport {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'name', type: 'text', nullable: false })
+  @Column({ name: 'name', type: 'varchar', length: 50, unique: true })
   name: string;
 
   @OneToMany(() => Team, (team) => team.sport)
