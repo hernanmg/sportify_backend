@@ -15,7 +15,7 @@ export class Permission {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ name: 'name', type: 'varchar', length: 50, unique: true })
   name: string;
 
   @Column({ nullable: true })
