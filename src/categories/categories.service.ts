@@ -116,14 +116,47 @@ export class CategoriesService {
     const resolvedSportId = await this.resolveSportId(sportId);
 
     const footballCategories = [
-      { name: 'Libre', description: 'Categoría libre sin restricciones de edad', gender: 'mixto', sortOrder: 1 },
-      { name: 'Masculino', description: 'Categoría masculina', gender: 'masculino', sortOrder: 2 },
-      { name: 'Femenino', description: 'Categoría femenina', gender: 'femenino', sortOrder: 3 },
-      { name: '+35', description: 'Categoría para jugadores de 35 años en adelante', ageMin: 35, gender: 'masculino', sortOrder: 4 },
-      { name: '+40', description: 'Categoría para jugadores de 40 años en adelante', ageMin: 40, gender: 'masculino', sortOrder: 5 },
-      { name: '+45', description: 'Categoría para jugadores de 45 años en adelante', ageMin: 45, gender: 'masculino', sortOrder: 6 },
-      { name: 'Femenino +30', description: 'Categoría femenina para jugadoras de 30 años en adelante', ageMin: 30, gender: 'femenino', sortOrder: 7 },
-      { name: 'Juvenil', description: 'Categoría juvenil (hasta 18 años)', ageMax: 18, gender: 'mixto', sortOrder: 8 },
+      {
+        name: 'Masculino Libre',
+        description: 'Masculino sin restricción de edad',
+        gender: 'masculino',
+        sortOrder: 1,
+      },
+      {
+        name: 'Masculino +35',
+        description: 'Masculino 35 años en adelante',
+        ageMin: 35,
+        gender: 'masculino',
+        sortOrder: 2,
+      },
+      {
+        name: 'Masculino +40',
+        description: 'Masculino 40 años en adelante',
+        ageMin: 40,
+        gender: 'masculino',
+        sortOrder: 3,
+      },
+      {
+        name: 'Masculino +45',
+        description: 'Masculino 45 años en adelante',
+        ageMin: 45,
+        gender: 'masculino',
+        sortOrder: 4,
+      },
+      {
+        name: 'Femenino +30',
+        description: 'Femenino 30 años en adelante',
+        ageMin: 30,
+        gender: 'femenino',
+        sortOrder: 5,
+      },
+      {
+        name: 'Juvenil',
+        description: 'Juvenil (hasta 18 años)',
+        ageMax: 18,
+        gender: 'mixto',
+        sortOrder: 6,
+      },
     ];
 
     const createdCategories: Category[] = [];

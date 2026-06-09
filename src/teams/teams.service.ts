@@ -117,6 +117,19 @@ export class TeamsService {
     );
   }
 
+  /** No degradar dt / admin de plataforma al crear o unirse a un equipo. */
+  private async ensureClubManagerRole(userId: number): Promise<void> {
+    const primary = await this.primaryRoleForUser(userId);
+    if (
+      ['super_admin', 'manager', 'admin', 'dt', 'team_captain'].includes(
+        primary,
+      )
+    ) {
+      return;
+    }
+    await this.setPrimaryRole(userId, 'manager');
+  }
+
   private async primaryRoleForUser(userId: number): Promise<string> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -331,6 +344,7 @@ export class TeamsService {
 
       const existing = await this.teamRepository.findOne({
         where: { name: dto.name.trim(), sport_id: dto.sportId },
+        relations: ['teamCategories'],
       });
       if (existing) {
         const member = await this.teamMemberRepository.findOne({
@@ -339,6 +353,40 @@ export class TeamsService {
         if (member) {
           throw new ConflictException('Ya sos miembro de este equipo');
         }
+
+        await this.addTeamMember(userId, existing.id, TeamMemberRole.ADMIN);
+        const mergedCategoryIds = [
+          ...new Set([
+            ...(existing.teamCategories?.map((tc) => tc.categoryId) ?? []),
+            ...categoryIds,
+          ]),
+        ];
+        if (mergedCategoryIds.length) {
+          await this.setTeamCategories(existing.id, mergedCategoryIds);
+        }
+        await this.ensureRosterEntries(userId, existing.id, categoryIds);
+        await this.ensureClubManagerRole(userId);
+
+        const role = await this.primaryRoleForUser(userId);
+        let inviteCode: string | undefined;
+        try {
+          const invite = await this.createInvite(
+            existing.id,
+            userId,
+            categoryIds,
+          );
+          inviteCode = invite.code;
+        } catch {
+          // Ya hay invitación activa o sin permiso extra; no bloquea el alta.
+        }
+
+        return {
+          mode: 'join_existing',
+          team: await this.findOne(existing.id),
+          inviteCode,
+          role,
+          message: `El equipo "${existing.name}" ya existía. Te uniste como encargado.`,
+        };
       }
 
       const team = await this.create({
@@ -349,8 +397,7 @@ export class TeamsService {
       });
 
       await this.addTeamMember(userId, team.id, TeamMemberRole.ADMIN);
-      // Encargado del club: manager (gestión deportiva, eventos, finanzas de equipo)
-      await this.setPrimaryRole(userId, 'manager');
+      await this.ensureClubManagerRole(userId);
       await this.ensureRosterEntries(userId, team.id, categoryIds);
 
       const { code } = await this.createInvite(team.id, userId, categoryIds);
@@ -392,7 +439,7 @@ export class TeamsService {
       await this.ensureRosterEntries(userId, team.id, categoryIds);
     }
     if (!this.isPlatformAdminRole(globalRole)) {
-      await this.setPrimaryRole(userId, 'manager');
+      await this.ensureClubManagerRole(userId);
     }
     await this.createInvite(team.id, userId, categoryIds);
 
@@ -545,7 +592,7 @@ export class TeamsService {
       });
       if (userId) {
         await this.addTeamMember(userId, created.id, TeamMemberRole.ADMIN);
-        await this.setPrimaryRole(userId, 'manager');
+        await this.ensureClubManagerRole(userId);
         if (categoryId) {
           await this.ensureRosterEntries(userId, created.id, [categoryId]);
         }
