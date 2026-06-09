@@ -496,11 +496,11 @@ export class TeamsService {
     },
   ): Promise<Team> {
     const { categoryIds, createdByUserId, ...teamData } = createTeamData;
-    if (createdByUserId) {
-      teamData.createdByUserId = createdByUserId;
-    }
     const team = await this.teamRepository.save(
-      this.teamRepository.create(teamData),
+      this.teamRepository.create({
+        ...teamData,
+        ...(createdByUserId != null ? { createdByUserId } : {}),
+      }),
     );
     if (categoryIds?.length) {
       await this.setTeamCategories(team.id, categoryIds);
