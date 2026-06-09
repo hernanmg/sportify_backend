@@ -44,7 +44,16 @@ ON CONFLICT (email) DO UPDATE SET
   estado_registro = 'active',
   email_verified = true,
   is_active = true,
+  profile_completion = 80,
   updated_at = NOW();
+
+UPDATE users
+SET profile_completion = 80
+WHERE email IN (
+  'hernanmilers121@gmail.com',
+  'sanchez.guillermo@hotmail.com',
+  'maxirodriguez160583@gmail.com'
+);
 
 -- Roles (un rol principal por usuario)
 DELETE FROM user_roles

@@ -342,58 +342,70 @@ export class TeamsService {
         throw new BadRequestException('Seleccioná al menos una categoría');
       }
 
-      const existing = await this.teamRepository.findOne({
-        where: { name: dto.name.trim(), sport_id: dto.sportId },
+      const trimmedName = dto.name.trim();
+      const existingTeams = await this.teamRepository.find({
+        where: { name: trimmedName, sport_id: dto.sportId },
         relations: ['teamCategories'],
       });
-      if (existing) {
+
+      const ownTeam = existingTeams.find((t) => t.createdByUserId === userId);
+      if (ownTeam) {
         const member = await this.teamMemberRepository.findOne({
-          where: { userId, teamId: existing.id },
+          where: { userId, teamId: ownTeam.id },
         });
         if (member) {
           throw new ConflictException('Ya sos miembro de este equipo');
         }
 
-        await this.addTeamMember(userId, existing.id, TeamMemberRole.ADMIN);
+        await this.addTeamMember(userId, ownTeam.id, TeamMemberRole.ADMIN);
         const mergedCategoryIds = [
           ...new Set([
-            ...(existing.teamCategories?.map((tc) => tc.categoryId) ?? []),
+            ...(ownTeam.teamCategories?.map((tc) => tc.categoryId) ?? []),
             ...categoryIds,
           ]),
         ];
         if (mergedCategoryIds.length) {
-          await this.setTeamCategories(existing.id, mergedCategoryIds);
+          await this.setTeamCategories(ownTeam.id, mergedCategoryIds);
         }
-        await this.ensureRosterEntries(userId, existing.id, categoryIds);
+        await this.ensureRosterEntries(userId, ownTeam.id, categoryIds);
         await this.ensureClubManagerRole(userId);
 
         const role = await this.primaryRoleForUser(userId);
-        let inviteCode: string | undefined;
-        try {
-          const invite = await this.createInvite(
-            existing.id,
-            userId,
-            categoryIds,
-          );
-          inviteCode = invite.code;
-        } catch {
-          // Ya hay invitación activa o sin permiso extra; no bloquea el alta.
-        }
-
         return {
           mode: 'join_existing',
-          team: await this.findOne(existing.id),
-          inviteCode,
+          team: await this.findOne(ownTeam.id),
           role,
-          message: `El equipo "${existing.name}" ya existía. Te uniste como encargado.`,
+          message: `Ya tenías el equipo "${ownTeam.name}" cargado. Te vinculamos como encargado.`,
         };
       }
 
+      const foreignTeams = existingTeams.filter(
+        (t) => t.createdByUserId !== userId,
+      );
+      if (foreignTeams.length > 0 && !dto.acknowledgeDuplicateName) {
+        const adminEmails = await this.getAdminEmailsForTeams(
+          foreignTeams.map((t) => t.id),
+        );
+        throw new ConflictException({
+          message:
+            'Ya existe otro equipo con este nombre en el mismo deporte. ' +
+            'Si es un club distinto, confirmá la creación. ' +
+            'Si es el tuyo, unite con el código de invitación del administrador.',
+          code: 'DUPLICATE_TEAM_NAME',
+          teams: foreignTeams.map((t) => ({
+            id: t.id,
+            name: t.name,
+            adminEmails: adminEmails.get(t.id) ?? [],
+          })),
+        });
+      }
+
       const team = await this.create({
-        name: dto.name.trim(),
+        name: trimmedName,
         sport_id: dto.sportId,
         description: dto.description ?? 'Equipo creado desde la app',
         categoryIds,
+        createdByUserId: userId,
       });
 
       await this.addTeamMember(userId, team.id, TeamMemberRole.ADMIN);
@@ -432,7 +444,10 @@ export class TeamsService {
           ? [createTeamData.categoryId]
           : [];
 
-    const team = await this.create(createTeamData);
+    const team = await this.create({
+      ...createTeamData,
+      createdByUserId: userId,
+    });
 
     await this.addTeamMember(userId, team.id, TeamMemberRole.ADMIN);
     if (categoryIds.length) {
@@ -474,8 +489,16 @@ export class TeamsService {
     };
   }
 
-  async create(createTeamData: Partial<Team> & { categoryIds?: number[] }): Promise<Team> {
-    const { categoryIds, ...teamData } = createTeamData;
+  async create(
+    createTeamData: Partial<Team> & {
+      categoryIds?: number[];
+      createdByUserId?: number;
+    },
+  ): Promise<Team> {
+    const { categoryIds, createdByUserId, ...teamData } = createTeamData;
+    if (createdByUserId) {
+      teamData.createdByUserId = createdByUserId;
+    }
     const team = await this.teamRepository.save(
       this.teamRepository.create(teamData),
     );
@@ -515,6 +538,28 @@ export class TeamsService {
     return teams.map(mapTeamWithCategories);
   }
 
+  async getAdminEmailsForTeams(
+    teamIds: number[],
+  ): Promise<Map<number, string[]>> {
+    const result = new Map<number, string[]>();
+    if (!teamIds.length) return result;
+
+    const members = await this.teamMemberRepository.find({
+      where: { teamId: In(teamIds), role: TeamMemberRole.ADMIN },
+      relations: ['user'],
+    });
+
+    for (const m of members) {
+      const email = m.user?.email;
+      if (!email) continue;
+      const list = result.get(m.teamId) ?? [];
+      if (!list.includes(email)) list.push(email);
+      result.set(m.teamId, list);
+    }
+
+    return result;
+  }
+
   async searchTeams(query: string) {
     const teams = await this.teamRepository.find({
       where: [
@@ -525,7 +570,14 @@ export class TeamsService {
       order: { name: 'ASC' },
       take: 20,
     });
-    return teams.map(mapTeamWithCategories);
+    const mapped = teams.map(mapTeamWithCategories);
+    const adminEmails = await this.getAdminEmailsForTeams(
+      teams.map((t) => t.id),
+    );
+    return mapped.map((team) => ({
+      ...team,
+      adminEmails: adminEmails.get(team.id) ?? [],
+    }));
   }
 
   async update(

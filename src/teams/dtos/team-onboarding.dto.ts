@@ -39,6 +39,10 @@ export class TeamOnboardingDto {
   @IsString()
   @MinLength(4)
   inviteCode?: string;
+
+  /** Crear aunque exista otro equipo con el mismo nombre (otro admin). */
+  @IsOptional()
+  acknowledgeDuplicateName?: boolean;
 }
 
 export class JoinTeamDto {

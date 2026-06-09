@@ -53,6 +53,9 @@ export class Team {
   @Column({ name: 'logo_url', type: 'text', nullable: true })
   logoUrl?: string;
 
+  @Column({ name: 'created_by_user_id', type: 'int', nullable: true })
+  createdByUserId?: number;
+
   @OneToMany(() => Player, (player) => player.team)
   players: Player[];
 
