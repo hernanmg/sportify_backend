@@ -36,8 +36,8 @@ export class TeamDashboardService {
     const elevated = ['super_admin', 'manager', 'admin', 'team_captain', 'dt'];
     if (globalRole && elevated.includes(globalRole)) {
       if (['super_admin', 'manager'].includes(globalRole)) return;
-      const isAdmin = await this.teamsService.isTeamAdmin(userId, teamId);
-      if (isAdmin) return;
+      const isMember = await this.teamsService.isTeamMember(userId, teamId);
+      if (isMember) return;
     }
     throw new ForbiddenException(
       'Solo el cuerpo técnico puede ver el panel del equipo',

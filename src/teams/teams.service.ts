@@ -288,6 +288,13 @@ export class TeamsService {
     };
   }
 
+  private async isStaffUser(userId: number): Promise<boolean> {
+    const role = await this.primaryRoleForUser(userId);
+    return ['super_admin', 'manager', 'admin', 'dt', 'team_captain'].includes(
+      role,
+    );
+  }
+
   async joinWithCode(userId: number, dto: JoinTeamDto) {
     const invite = await this.teamInviteRepository.findOne({
       where: { code: dto.inviteCode.trim().toUpperCase(), isActive: true },
@@ -297,24 +304,44 @@ export class TeamsService {
       throw new NotFoundException('Código de invitación inválido o expirado');
     }
 
-    await this.addTeamMember(userId, invite.teamId, TeamMemberRole.PLAYER);
-    await this.setPrimaryRole(userId, 'player');
+    const isStaff = await this.isStaffUser(userId);
+    const memberRole = isStaff ? TeamMemberRole.ADMIN : TeamMemberRole.PLAYER;
+    await this.addTeamMember(userId, invite.teamId, memberRole);
 
-    const categoryIds =
-      dto.categoryIds?.length
+    if (!isStaff) {
+      await this.setPrimaryRole(userId, 'player');
+    }
+
+    // Jugadores: categorías del invite o las elegidas. Staff: plantel solo si elige categorías.
+    let categoryIds: number[] = [];
+    if (isStaff) {
+      categoryIds = dto.categoryIds?.length ? dto.categoryIds : [];
+    } else {
+      categoryIds = dto.categoryIds?.length
         ? dto.categoryIds
-        : (invite.categoryIds as number[] | undefined) ?? [];
+        : ((invite.categoryIds as number[] | undefined) ?? []);
+    }
 
     if (categoryIds.length) {
       await this.ensureRosterEntries(userId, invite.teamId, categoryIds);
     }
 
     const role = await this.primaryRoleForUser(userId);
+    const teamName = invite.team.name;
+    let message = `Te uniste a ${teamName}`;
+    if (isStaff) {
+      message = categoryIds.length
+        ? `Te uniste a ${teamName} como cuerpo técnico y jugador`
+        : `Te uniste a ${teamName} como cuerpo técnico`;
+    }
+
     return {
       team: await this.findOne(invite.teamId),
       teamId: invite.teamId,
       role,
-      message: `Te uniste a ${invite.team.name}`,
+      joinedAsStaff: isStaff,
+      onRoster: categoryIds.length > 0,
+      message,
     };
   }
 
