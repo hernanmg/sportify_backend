@@ -19,6 +19,7 @@ import { Category } from '../categories/entities/category.entity';
 import { TeamCategory } from '../teams/entities/team-category.entity';
 import { TeamMember } from '../teams/entities/team-member.entity';
 import { TeamAuditService } from '../teams/team-audit.service';
+import { shortCategoryLabel } from '../common/category-label';
 
 @Injectable()
 export class RosterService {
@@ -40,6 +41,16 @@ export class RosterService {
     @Inject(forwardRef(() => TeamAuditService))
     private readonly teamAuditService: TeamAuditService,
   ) {}
+
+  private mapRosterCategory(row: PlayerRoster): PlayerRoster {
+    const label = shortCategoryLabel(
+      row.categoryRef?.name ?? row.category,
+    );
+    if (label && label !== row.category) {
+      row.category = label;
+    }
+    return row;
+  }
 
   private isElevatedRole(globalRole?: string): boolean {
     return (
@@ -428,7 +439,7 @@ export class RosterService {
       if (season && rosters.length === 0) {
         rosters = await load(undefined);
       }
-      return rosters || [];
+      return (rosters || []).map((r) => this.mapRosterCategory(r));
     } catch (error) {
       console.error('Error in findByTeam rosters:', error);
       throw error;

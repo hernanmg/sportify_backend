@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
+const { getPgClientConfig } = require('./db-connection');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -39,29 +40,15 @@ const MIGRATION_FILES = [
   'src/database/migrations/022-guest-players.sql',
   'src/database/migrations/023-category-display-names.sql',
   'src/database/migrations/024-team-created-by.sql',
+  'src/database/migrations/025-permissions-name-column.sql',
+  'src/database/migrations/026-short-category-labels.sql',
+  'src/database/migrations/027-sports-roles-name-column.sql',
 ];
 
 const AUX_FILES = ['src/database/render/01-inserts-aux.sql'];
 
 /** Siempre re-ejecutable (upsert usuarios demo). No se registra en sportify_schema_migrations. */
 const SEED_FILES = ['src/database/render/99-seed-demo.sql'];
-
-function getClientConfig() {
-  const url = process.env.DATABASE_URL;
-  if (url) {
-    return {
-      connectionString: url,
-      ssl: { rejectUnauthorized: false },
-    };
-  }
-  return {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    user: process.env.DB_USERNAME || 'sportify_user',
-    password: process.env.DB_PASSWORD || 'sportify_password',
-    database: process.env.DB_NAME || 'sportify_amateur',
-  };
-}
 
 async function ensureMigrationTable(client) {
   await client.query(`
@@ -100,10 +87,117 @@ async function runSqlFile(client, relativePath) {
   await client.query(sql);
 }
 
-async function runFileList(client, files) {
+async function isDatabaseBootstrapped(client) {
+  const res = await client.query(`
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'users'
+    LIMIT 1
+  `);
+  return res.rowCount > 0;
+}
+
+async function isAuxDataSeeded(client) {
+  const res = await client.query(`
+    SELECT 1 FROM roles WHERE name = 'super_admin' LIMIT 1
+  `);
+  return res.rowCount > 0;
+}
+
+async function tableExists(client, tableName) {
+  const res = await client.query(
+    `SELECT 1 FROM information_schema.tables
+     WHERE table_schema = 'public' AND table_name = $1 LIMIT 1`,
+    [tableName],
+  );
+  return res.rowCount > 0;
+}
+
+function migrationNumber(filename) {
+  const match = filename.match(/(\d+)-/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+/**
+ * Bases locales creadas con TypeORM sync no tienen 001–024 en el historial.
+ * Las sellamos si el esquema ya existe, para no re-ejecutar SQL incompatible.
+ */
+async function stampLegacyMigrations(client) {
+  if (!(await tableExists(client, 'player_roster'))) return;
+
+  for (const file of MIGRATION_FILES) {
+    if (await isApplied(client, file)) continue;
+
+    const n = migrationNumber(file);
+
+    if (n > 0 && n < 25) {
+      console.log(
+        `⏭  Sellada (esquema sync, migración ${String(n).padStart(3, '0')}): ${file}`,
+      );
+      await markApplied(client, file);
+      continue;
+    }
+
+    if (n === 25) {
+      const col = await client.query(`
+        SELECT is_nullable FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'permissions' AND column_name = 'name'
+      `);
+      if (col.rowCount > 0 && col.rows[0].is_nullable === 'NO') {
+        console.log(`⏭  Sellada (025 ya aplicada): ${file}`);
+        await markApplied(client, file);
+        continue;
+      }
+    }
+
+    if (n === 26) {
+      const r = await client.query(
+        `SELECT 1 FROM categories WHERE name IN ('M+35', 'M-Libre') LIMIT 1`,
+      );
+      if (r.rowCount > 0) {
+        console.log(`⏭  Sellada (026 ya aplicada): ${file}`);
+        await markApplied(client, file);
+        continue;
+      }
+    }
+
+    if (n === 27) {
+      const col = await client.query(`
+        SELECT is_nullable FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'sports' AND column_name = 'name'
+      `);
+      if (col.rowCount > 0 && col.rows[0].is_nullable === 'NO') {
+        console.log(`⏭  Sellada (027 ya aplicada): ${file}`);
+        await markApplied(client, file);
+        continue;
+      }
+    }
+
+    break;
+  }
+}
+
+async function runFileList(
+  client,
+  files,
+  { bootstrap = false, skipIfSeeded = false } = {},
+) {
   for (const file of files) {
     if (await isApplied(client, file)) {
       console.log(`⏭  Ya aplicado: ${file}`);
+      continue;
+    }
+    if (bootstrap && (await isDatabaseBootstrapped(client))) {
+      console.log(
+        `⏭  Bootstrap omitido (DB ya inicializada): ${file}`,
+      );
+      await markApplied(client, file);
+      continue;
+    }
+    if (skipIfSeeded && (await isAuxDataSeeded(client))) {
+      console.log(`⏭  Aux omitido (roles ya cargados): ${file}`);
+      await markApplied(client, file);
       continue;
     }
     try {
@@ -118,14 +212,16 @@ async function runFileList(client, files) {
 
 async function main() {
   const runSeed = process.env.RUN_DEMO_SEED !== 'false';
-  const client = new Client(getClientConfig());
+  const { config, label } = getPgClientConfig();
+  const client = new Client(config);
   await client.connect();
-  console.log('🗄️  Deploy DB: conectado');
+  console.log(`🗄️  Deploy DB: conectado → ${label}`);
 
   try {
     await ensureMigrationTable(client);
-    await runFileList(client, BOOTSTRAP_FILES);
-    await runFileList(client, AUX_FILES);
+    await runFileList(client, BOOTSTRAP_FILES, { bootstrap: true });
+    await runFileList(client, AUX_FILES, { skipIfSeeded: true });
+    await stampLegacyMigrations(client);
     await runFileList(client, MIGRATION_FILES);
     if (runSeed) {
       for (const file of SEED_FILES) {

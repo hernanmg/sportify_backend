@@ -38,7 +38,7 @@ export class ConvocationsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Body() convocationDto: ConvocationDto,
@@ -113,7 +113,7 @@ export class ConvocationsController {
 
   @Put(':id/squad')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.OK)
   async setSquad(
     @Param('id', ParseIntPipe) id: number,
@@ -127,7 +127,7 @@ export class ConvocationsController {
 
   @Post(':id/send')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.OK)
   async send(
     @Param('id', ParseIntPipe) id: number,
@@ -140,7 +140,7 @@ export class ConvocationsController {
 
   @Post(':id/resend')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.OK)
   async resend(
     @Param('id', ParseIntPipe) id: number,
@@ -154,7 +154,7 @@ export class ConvocationsController {
 
   @Post(':id/participants/:userId/fee-override')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   async feeOverride(
     @Param('id', ParseIntPipe) id: number,
     @Param('userId', ParseIntPipe) userId: number,
@@ -173,7 +173,7 @@ export class ConvocationsController {
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.OK)
   async update(
     @Param('id', ParseIntPipe) id: number,
@@ -187,7 +187,7 @@ export class ConvocationsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @Param('id', ParseIntPipe) id: number,
@@ -228,7 +228,7 @@ export class ConvocationsController {
 
   @Post('official-match')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.CREATED)
   async createOfficialMatch(
     @Body() convocationDto: ConvocationDto,
@@ -243,7 +243,7 @@ export class ConvocationsController {
 
   @Post('friendly-match')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
   @HttpCode(HttpStatus.CREATED)
   async createFriendlyMatch(
     @Body() convocationDto: ConvocationDto,

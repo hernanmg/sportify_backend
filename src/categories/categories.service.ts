@@ -117,34 +117,34 @@ export class CategoriesService {
 
     const footballCategories = [
       {
-        name: 'Masculino Libre',
+        name: 'M-Libre',
         description: 'Masculino sin restricción de edad',
         gender: 'masculino',
         sortOrder: 1,
       },
       {
-        name: 'Masculino +35',
+        name: 'M+35',
         description: 'Masculino 35 años en adelante',
         ageMin: 35,
         gender: 'masculino',
         sortOrder: 2,
       },
       {
-        name: 'Masculino +40',
+        name: 'M+40',
         description: 'Masculino 40 años en adelante',
         ageMin: 40,
         gender: 'masculino',
         sortOrder: 3,
       },
       {
-        name: 'Masculino +45',
+        name: 'M+45',
         description: 'Masculino 45 años en adelante',
         ageMin: 45,
         gender: 'masculino',
         sortOrder: 4,
       },
       {
-        name: 'Femenino +30',
+        name: 'F+30',
         description: 'Femenino 30 años en adelante',
         ageMin: 30,
         gender: 'femenino',

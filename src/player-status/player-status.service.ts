@@ -43,9 +43,19 @@ export class PlayerStatusService {
     teamId: number,
     globalRole?: string,
   ): Promise<void> {
-    const allowedGlobal = ['super_admin', 'manager', 'admin', 'team_captain'];
+    const allowedGlobal = [
+      'super_admin',
+      'manager',
+      'admin',
+      'team_captain',
+      'dt',
+    ];
     if (globalRole && allowedGlobal.includes(globalRole)) {
-      if (['super_admin', 'manager'].includes(globalRole)) return;
+      if (['super_admin', 'manager', 'admin'].includes(globalRole)) return;
+      if (globalRole === 'dt') {
+        const isMember = await this.teamsService.isTeamMember(userId, teamId);
+        if (isMember) return;
+      }
     }
     const isAdmin = await this.teamsService.isTeamAdmin(userId, teamId);
     if (!isAdmin) {
