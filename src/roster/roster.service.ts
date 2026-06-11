@@ -435,10 +435,7 @@ export class RosterService {
         });
       };
 
-      let rosters = await load(season);
-      if (season && rosters.length === 0) {
-        rosters = await load(undefined);
-      }
+      const rosters = await load(season);
       return (rosters || []).map((r) => this.mapRosterCategory(r));
     } catch (error) {
       console.error('Error in findByTeam rosters:', error);
