@@ -52,6 +52,29 @@ export class RosterService {
     return row;
   }
 
+  /** Incluye temporadas legado (2025-2026) al filtrar Apertura/Clausura. */
+  private seasonFilterVariants(season: string): string[] {
+    const variants = new Set<string>([season.trim()]);
+    const apertura = /^(\d{4})-Apertura$/i.exec(season);
+    if (apertura) {
+      const y = parseInt(apertura[1], 10);
+      variants.add(`${y - 1}-${y}`);
+    }
+    const clausura = /^(\d{4})-Clausura$/i.exec(season);
+    if (clausura) {
+      const y = parseInt(clausura[1], 10);
+      variants.add(`${y}-${y + 1}`);
+    }
+    const legacy = /^(\d{4})-(\d{4})$/.exec(season);
+    if (legacy) {
+      const start = parseInt(legacy[1], 10);
+      const end = parseInt(legacy[2], 10);
+      variants.add(`${end}-Apertura`);
+      variants.add(`${start}-Clausura`);
+    }
+    return [...variants];
+  }
+
   private isElevatedRole(globalRole?: string): boolean {
     return (
       !!globalRole &&
@@ -423,7 +446,9 @@ export class RosterService {
       const load = async (seasonFilter?: string) => {
         const whereCondition: Record<string, unknown> = { teamId };
         if (seasonFilter) {
-          whereCondition.season = seasonFilter;
+          const variants = this.seasonFilterVariants(seasonFilter);
+          whereCondition.season =
+            variants.length === 1 ? variants[0] : In(variants);
         }
         if (effectiveCategoryIds?.length) {
           whereCondition.categoryId = In(effectiveCategoryIds);
