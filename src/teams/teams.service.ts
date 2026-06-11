@@ -68,9 +68,10 @@ export class TeamsService {
   ) {}
 
   private currentSeason(): string {
-    const y = new Date().getFullYear();
-    const m = new Date().getMonth() + 1;
-    return m >= 7 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
+    const year = new Date().getFullYear();
+    const month = new Date().getMonth() + 1;
+    const half = month <= 6 ? 'Apertura' : 'Clausura';
+    return `${year}-${half}`;
   }
 
   private generateCode(): string {
