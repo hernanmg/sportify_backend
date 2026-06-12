@@ -48,6 +48,7 @@ export class ConvocationsController {
     return await this.convocationsService.createConvocation(
       convocationDto,
       req.user.id,
+      req.user.role,
     );
   }
 
@@ -238,6 +239,7 @@ export class ConvocationsController {
     return await this.convocationsService.createConvocation(
       { ...convocationDto, isOfficialMatch: true },
       req.user.id,
+      req.user.role,
     );
   }
 
@@ -253,6 +255,7 @@ export class ConvocationsController {
     return await this.convocationsService.createConvocation(
       { ...convocationDto, isOfficialMatch: false },
       req.user.id,
+      req.user.role,
     );
   }
 }

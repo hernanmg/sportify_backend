@@ -22,6 +22,7 @@ import { Role } from '../roles/entities/role.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EventStateService } from './event-state.service';
 import { FinanceService } from '../finance/finance.service';
+import { TeamsService } from '../teams/teams.service';
 
 @Injectable()
 export class SportEventsService {
@@ -48,9 +49,32 @@ export class SportEventsService {
     private readonly eventStateService: EventStateService,
     @Inject(forwardRef(() => FinanceService))
     private readonly financeService: FinanceService,
+    private readonly teamsService: TeamsService,
   ) {}
 
-  async create(createSportEventDto: CreateSportEventDto): Promise<SportEvent> {
+  private isPlatformElevated(role?: string): boolean {
+    return role === 'super_admin' || role === 'manager';
+  }
+
+  private async assertCanCreateForTeam(
+    userId: number,
+    teamId: number,
+    role?: string,
+  ): Promise<void> {
+    if (this.isPlatformElevated(role)) return;
+    const isMember = await this.teamsService.isTeamMember(userId, teamId);
+    if (!isMember) {
+      throw new ForbiddenException(
+        'Solo los miembros del equipo pueden crear eventos para ese club',
+      );
+    }
+  }
+
+  async create(
+    createSportEventDto: CreateSportEventDto,
+    actorUserId: number,
+    actorRole?: string,
+  ): Promise<SportEvent> {
     // Verificar que el equipo existe
     const team = await this.teamRepository.findOne({
       where: { id: createSportEventDto.teamId }
@@ -59,9 +83,27 @@ export class SportEventsService {
       throw new NotFoundException(`Equipo con ID ${createSportEventDto.teamId} no encontrado`);
     }
 
+    const creatorId = createSportEventDto.createdBy ?? actorUserId;
+    if (
+      createSportEventDto.createdBy != null &&
+      createSportEventDto.createdBy !== actorUserId &&
+      !this.isPlatformElevated(actorRole)
+    ) {
+      throw new ForbiddenException(
+        'No podés crear eventos en nombre de otro usuario',
+      );
+    }
+    createSportEventDto.createdBy = creatorId;
+
+    await this.assertCanCreateForTeam(
+      creatorId,
+      createSportEventDto.teamId,
+      actorRole,
+    );
+
     // Verificar que el creador existe
     const creator = await this.userRepository.findOne({
-      where: { id: createSportEventDto.createdBy }
+      where: { id: creatorId }
     });
     if (!creator) {
       throw new NotFoundException(`Usuario creador con ID ${createSportEventDto.createdBy} no encontrado`);

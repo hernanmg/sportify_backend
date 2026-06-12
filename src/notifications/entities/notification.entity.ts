@@ -27,6 +27,7 @@ export enum NotificationType {
   EVENT_STARTED = 'event_started',
   IMPEDIMENT_CLEARED = 'impediment_cleared',
   PLAYER_ELIGIBLE = 'player_eligible',
+  BIRTHDAY = 'birthday',
 }
 
 export enum NotificationPriority {

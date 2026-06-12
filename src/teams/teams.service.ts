@@ -78,6 +78,98 @@ export class TeamsService {
     return randomBytes(4).toString('hex').toUpperCase();
   }
 
+  /** Acepta snake_case del cliente Flutter y valida escudo (data-URI o URL cloud). */
+  private normalizeTeamPayload(
+    data: Partial<Team> & {
+      categoryIds?: number[];
+      sport_id?: number;
+      founded_year?: number;
+      logo_url?: string;
+      category_id?: number;
+    },
+  ): Partial<Team> & { categoryIds?: number[] } {
+    const { categoryIds, ...rest } = data;
+    const normalized: Partial<Team> = { ...rest };
+
+    if (rest.sport_id != null && normalized.sport_id == null) {
+      normalized.sport_id = rest.sport_id;
+    }
+    if (rest.founded_year != null && normalized.foundedYear == null) {
+      normalized.foundedYear = rest.founded_year;
+    }
+    if (rest.logo_url != null && normalized.logoUrl == null) {
+      normalized.logoUrl = rest.logo_url;
+    }
+    if (rest.category_id != null && normalized.categoryId == null) {
+      normalized.categoryId = rest.category_id;
+    }
+    if (
+      (rest as { birthday_notification_hour?: number }).birthday_notification_hour !=
+        null &&
+      normalized.birthdayNotificationHour == null
+    ) {
+      normalized.birthdayNotificationHour = (
+        rest as { birthday_notification_hour?: number }
+      ).birthday_notification_hour;
+    }
+
+    if (normalized.birthdayNotificationHour != null) {
+      this.validateBirthdayNotificationHour(normalized.birthdayNotificationHour);
+    }
+
+    if (normalized.logoUrl !== undefined) {
+      this.validateLogoUrl(normalized.logoUrl);
+    }
+
+    return { ...normalized, categoryIds };
+  }
+
+  private validateLogoUrl(logoUrl?: string | null): void {
+    if (!logoUrl || logoUrl.trim() === '') return;
+    const value = logoUrl.trim();
+    if (value.startsWith('https://') || value.startsWith('http://')) {
+      return;
+    }
+    if (value.startsWith('data:image/')) {
+      if (value.length > 700_000) {
+        throw new BadRequestException(
+          'El escudo es demasiado grande. Usá una imagen más chica.',
+        );
+      }
+      return;
+    }
+    throw new BadRequestException(
+      'Formato de escudo inválido. Usá una imagen o una URL.',
+    );
+  }
+
+  private validateBirthdayNotificationHour(hour: number): void {
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+      throw new BadRequestException(
+        'La hora de notificación de cumpleaños debe estar entre 0 y 23',
+      );
+    }
+  }
+
+  async updateBirthdayNotificationHour(
+    teamId: number,
+    userId: number,
+    role: string | undefined,
+    hour: number,
+  ) {
+    this.validateBirthdayNotificationHour(hour);
+    const elevated = role === 'super_admin' || role === 'manager';
+    const isAdmin = await this.isTeamAdmin(userId, teamId);
+    const isDt =
+      role === 'dt' && (await this.isTeamMember(userId, teamId));
+    if (!elevated && !isAdmin && !isDt) {
+      throw new ForbiddenException(
+        'Solo el DT o admin del equipo puede configurar los cumpleaños',
+      );
+    }
+    return this.update(teamId, { birthdayNotificationHour: hour });
+  }
+
   async isTeamAdmin(userId: number, teamId: number): Promise<boolean> {
     const member = await this.teamMemberRepository.findOne({
       where: { userId, teamId, role: TeamMemberRole.ADMIN },
@@ -522,9 +614,17 @@ export class TeamsService {
     createTeamData: Partial<Team> & {
       categoryIds?: number[];
       createdByUserId?: number;
+      sport_id?: number;
+      founded_year?: number;
+      logo_url?: string;
+      category_id?: number;
     },
   ): Promise<Team> {
-    const { categoryIds, createdByUserId, ...teamData } = createTeamData;
+    const normalized = this.normalizeTeamPayload(createTeamData);
+    const { categoryIds, createdByUserId, ...teamData } = {
+      ...normalized,
+      createdByUserId: createTeamData.createdByUserId,
+    };
     const team = await this.teamRepository.save(
       this.teamRepository.create({
         ...teamData,
@@ -611,9 +711,16 @@ export class TeamsService {
 
   async update(
     id: number,
-    updateData: Partial<Team> & { categoryIds?: number[] },
+    updateData: Partial<Team> & {
+      categoryIds?: number[];
+      sport_id?: number;
+      founded_year?: number;
+      logo_url?: string;
+      category_id?: number;
+    },
   ) {
-    const { categoryIds, ...teamFields } = updateData;
+    const normalized = this.normalizeTeamPayload(updateData);
+    const { categoryIds, ...teamFields } = normalized;
     const team = await this.teamRepository.findOne({ where: { id } });
     if (!team) {
       throw new NotFoundException(`Team with ID ${id} not found`);

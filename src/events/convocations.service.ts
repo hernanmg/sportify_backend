@@ -112,6 +112,7 @@ export class ConvocationsService {
   async createConvocation(
     convocationDto: ConvocationDto,
     createdBy: number,
+    actorRole?: string,
   ): Promise<SportEvent> {
     const { categoryId, ...rest } = convocationDto;
     const metadata =
@@ -134,7 +135,11 @@ export class ConvocationsService {
       sendNotifications: false,
     };
 
-    return await this.sportEventsService.create(eventData as any);
+    return await this.sportEventsService.create(
+      eventData as any,
+      createdBy,
+      actorRole,
+    );
   }
 
   async findOne(convocationId: number): Promise<SportEvent> {

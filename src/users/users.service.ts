@@ -313,7 +313,7 @@ export class UsersService {
     ];
     
     const optionalFields = [
-      'provincia', 'pais', 'bio', 'experienciaDeportiva', 'avatarUrl'
+      'provincia', 'pais', 'bio', 'experienciaDeportiva', 'fichaOrigen', 'avatarUrl'
     ];
     
     let completedRequired = 0;
@@ -350,6 +350,7 @@ export class UsersService {
       { key: 'pais', label: 'País' },
       { key: 'bio', label: 'Biografía' },
       { key: 'experienciaDeportiva', label: 'Experiencia Deportiva' },
+      { key: 'fichaOrigen', label: 'De qué hincha soy' },
     ];
     
     return allFields

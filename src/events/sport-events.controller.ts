@@ -28,15 +28,19 @@ export class SportEventsController {
   constructor(private readonly sportEventsService: SportEventsService) {}
 
   @Post()
-  @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'team_captain', 'admin')
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createSportEventDto: CreateSportEventDto, @Request() req) {
-    // Asignar el usuario actual como creador si no se especifica
+  async create(
+    @Body() createSportEventDto: CreateSportEventDto,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
     if (!createSportEventDto.createdBy) {
       createSportEventDto.createdBy = req.user.id;
     }
-    return await this.sportEventsService.create(createSportEventDto);
+    return await this.sportEventsService.create(
+      createSportEventDto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Get()
@@ -183,32 +187,47 @@ export class SportEventsController {
   // ENDPOINTS ESPECÍFICOS POR TIPO DE EVENTO
 
   @Post('training')
-  @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager')
   @HttpCode(HttpStatus.CREATED)
-  async createTraining(@Body() createDto: CreateSportEventDto, @Request() req) {
+  async createTraining(
+    @Body() createDto: CreateSportEventDto,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
     createDto.type = SportEventType.TRAINING;
     createDto.createdBy = req.user.id;
-    return await this.sportEventsService.create(createDto);
+    return await this.sportEventsService.create(
+      createDto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Post('match')
-  @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager')
   @HttpCode(HttpStatus.CREATED)
-  async createMatch(@Body() createDto: CreateSportEventDto, @Request() req) {
+  async createMatch(
+    @Body() createDto: CreateSportEventDto,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
     createDto.type = SportEventType.MATCH;
     createDto.createdBy = req.user.id;
-    return await this.sportEventsService.create(createDto);
+    return await this.sportEventsService.create(
+      createDto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Post('social')
-  @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager')
   @HttpCode(HttpStatus.CREATED)
-  async createSocialEvent(@Body() createDto: CreateSportEventDto, @Request() req) {
+  async createSocialEvent(
+    @Body() createDto: CreateSportEventDto,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
     createDto.type = SportEventType.SOCIAL;
     createDto.createdBy = req.user.id;
-    return await this.sportEventsService.create(createDto);
+    return await this.sportEventsService.create(
+      createDto,
+      req.user.id,
+      req.user.role,
+    );
   }
 }

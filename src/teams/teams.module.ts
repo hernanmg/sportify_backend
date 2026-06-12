@@ -30,7 +30,11 @@ import { TeamAuditLog } from './entities/team-audit-log.entity';
 import { TeamAuditService } from './team-audit.service';
 import { TeamReportsService } from './team-reports.service';
 import { TeamSponsorsService } from './team-sponsors.service';
+import { TeamCalendarService } from './team-calendar.service';
+import { BirthdayNotificationsService } from './birthday-notifications.service';
 import { RosterModule } from '../roster/roster.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { Notification } from '../notifications/entities/notification.entity';
 
 @Module({
   imports: [
@@ -52,10 +56,12 @@ import { RosterModule } from '../roster/roster.module';
       LedgerEntry,
       TeamSponsor,
       TeamAuditLog,
+      Notification,
     ]),
     forwardRef(() => PlayerStatusModule),
     forwardRef(() => FinanceModule),
     forwardRef(() => RosterModule),
+    NotificationsModule,
   ],
   controllers: [
     TeamsController,
@@ -69,6 +75,8 @@ import { RosterModule } from '../roster/roster.module';
     TeamAuditService,
     TeamReportsService,
     TeamSponsorsService,
+    TeamCalendarService,
+    BirthdayNotificationsService,
   ],
   exports: [
     TeamsService,
@@ -76,6 +84,8 @@ import { RosterModule } from '../roster/roster.module';
     TeamAuditService,
     TeamReportsService,
     TeamSponsorsService,
+    TeamCalendarService,
+    BirthdayNotificationsService,
   ],
 })
 export class TeamsModule {}

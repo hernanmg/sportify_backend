@@ -53,6 +53,10 @@ export class Team {
   @Column({ name: 'logo_url', type: 'text', nullable: true })
   logoUrl?: string;
 
+  /** Hora local (Argentina) para enviar avisos de cumpleaños del plantel (0-23). */
+  @Column({ name: 'birthday_notification_hour', type: 'smallint', default: 9 })
+  birthdayNotificationHour: number;
+
   @Column({ name: 'created_by_user_id', type: 'int', nullable: true })
   createdByUserId?: number;
 

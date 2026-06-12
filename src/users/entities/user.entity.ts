@@ -65,6 +65,10 @@ export class User {
   @Column({ name: 'experiencia_deportiva', type: 'text', nullable: true })
   experienciaDeportiva?: string;
 
+  /** Club de origen / ficha previa (ej. "Club Atlético X"). */
+  @Column({ name: 'ficha_origen', type: 'varchar', length: 150, nullable: true })
+  fichaOrigen?: string;
+
   // Estado y configuración
   @Column({ 
     name: 'estado_registro', 

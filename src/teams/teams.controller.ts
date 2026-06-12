@@ -16,6 +16,7 @@ import { TeamDashboardService } from './team-dashboard.service';
 import { TeamReportsService } from './team-reports.service';
 import { TeamSponsorsService } from './team-sponsors.service';
 import { TeamAuditService } from './team-audit.service';
+import { TeamCalendarService } from './team-calendar.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
   TeamOnboardingDto,
@@ -34,6 +35,7 @@ export class TeamsController {
     private readonly teamReportsService: TeamReportsService,
     private readonly teamSponsorsService: TeamSponsorsService,
     private readonly teamAuditService: TeamAuditService,
+    private readonly teamCalendarService: TeamCalendarService,
     @InjectRepository(TeamSocialGuest)
     private readonly teamSocialGuestRepository: Repository<TeamSocialGuest>,
   ) {}
@@ -108,6 +110,40 @@ export class TeamsController {
       teamId,
       req.user.id,
       req.user.role,
+    );
+  }
+
+  @Get(':teamId/calendar')
+  @UseGuards(AuthGuard('jwt'))
+  getTeamCalendar(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('kinds') kinds: 'all' | 'events' | 'birthdays' = 'all',
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    return this.teamCalendarService.getTeamCalendar(
+      teamId,
+      req.user.id,
+      req.user.role,
+      from,
+      to,
+      kinds,
+    );
+  }
+
+  @Patch(':teamId/birthday-notification-hour')
+  @UseGuards(AuthGuard('jwt'))
+  updateBirthdayNotificationHour(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Body() body: { birthdayNotificationHour: number },
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    return this.teamsService.updateBirthdayNotificationHour(
+      teamId,
+      req.user.id,
+      req.user.role,
+      body.birthdayNotificationHour,
     );
   }
 

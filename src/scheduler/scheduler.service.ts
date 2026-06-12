@@ -5,6 +5,7 @@ import { Repository, LessThan, MoreThan } from 'typeorm';
 import { SportEvent, SportEventType, SportEventStatus } from '../events/entities/sport-event.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailService } from '../email/email.service';
+import { BirthdayNotificationsService } from '../teams/birthday-notifications.service';
 
 export interface ScheduledEmail {
   id: string;
@@ -29,6 +30,7 @@ export class SchedulerService {
     private sportEventRepository: Repository<SportEvent>,
     private notificationsService: NotificationsService,
     private emailService: EmailService,
+    private birthdayNotificationsService: BirthdayNotificationsService,
   ) {}
 
   // Programar email para envío diferido
@@ -261,6 +263,18 @@ export class SchedulerService {
       sent: emails.filter(e => e.sent).length,
       failed: emails.filter(e => !e.sent && e.attempts >= e.maxAttempts).length,
     };
+  }
+
+  // Notificaciones de cumpleaños (hora configurable por equipo, zona Argentina)
+  @Cron(CronExpression.EVERY_HOUR)
+  async sendBirthdayNotifications() {
+    try {
+      await this.birthdayNotificationsService.processScheduledBirthdayNotifications();
+    } catch (error) {
+      this.logger.error(
+        `❌ Error procesando cumpleaños: ${(error as Error).message}`,
+      );
+    }
   }
 
   // Limpiar emails antiguos (más de 7 días)

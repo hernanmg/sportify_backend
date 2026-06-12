@@ -39,6 +39,10 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
+  fichaOrigen?: string;
+
+  @IsOptional()
+  @IsString()
   avatarUrl?: string;
 
   @IsOptional()
