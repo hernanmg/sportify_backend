@@ -52,7 +52,10 @@ export class UsersController {
       throw new NotFoundException('Usuario no encontrado');
     }
     const { passwordHash, ...profile } = user;
-    return profile;
+    return {
+      ...profile,
+      role: this.userService.getPrimaryRoleName(user),
+    };
   }
 
   @Put('profile')

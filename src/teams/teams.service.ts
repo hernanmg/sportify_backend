@@ -141,6 +141,7 @@ export class TeamsService {
       super_admin: 100,
       manager: 80,
       admin: 75,
+      dt: 65,
       team_captain: 60,
       player: 40,
       guest: 10,
