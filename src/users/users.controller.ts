@@ -61,7 +61,12 @@ export class UsersController {
   @Put('profile')
   @UseGuards(AuthGuard('jwt'))
   async updateProfile(@Req() req, @Body() updateProfileDto: UpdateProfileDto) {
-    return this.userService.updateProfile(req.user.id, updateProfileDto);
+    const user = await this.userService.updateProfile(req.user.id, updateProfileDto);
+    const { passwordHash, ...profile } = user;
+    return {
+      ...profile,
+      role: this.userService.getPrimaryRoleName(user),
+    };
   }
 
   @Get('profile/completion')

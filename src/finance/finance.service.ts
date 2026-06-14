@@ -223,7 +223,19 @@ export class FinanceService {
     return Array.from(byConcept.values());
   }
 
-  async syncMissingFeeCharges(teamId: number, season?: string) {
+  async syncMissingFeeCharges(
+    teamId: number,
+    season?: string,
+    viewerId?: number,
+    globalRole?: string,
+  ) {
+    if (viewerId) {
+      await this.teamsService.assertCanManageTeamFinance(
+        viewerId,
+        teamId,
+        globalRole,
+      );
+    }
     const { roster, resolvedSeason } = await this.findRosterForFinance(
       teamId,
       season,
@@ -279,7 +291,18 @@ export class FinanceService {
     return { created, season: resolvedSeason };
   }
 
-  async generateFeeBatch(dto: CreateFeeBatchDto, createdBy?: number) {
+  async generateFeeBatch(
+    dto: CreateFeeBatchDto,
+    createdBy?: number,
+    globalRole?: string,
+  ) {
+    if (createdBy) {
+      await this.teamsService.assertCanManageTeamFinance(
+        createdBy,
+        dto.teamId,
+        globalRole,
+      );
+    }
     const { roster, resolvedSeason } = await this.resolveRosterForFinance(
       dto.teamId,
       dto.season,
@@ -348,7 +371,18 @@ export class FinanceService {
     return FeeChargeStatus.PARTIAL;
   }
 
-  async registerPayment(dto: RegisterPaymentDto, recordedBy?: number) {
+  async registerPayment(
+    dto: RegisterPaymentDto,
+    recordedBy?: number,
+    globalRole?: string,
+  ) {
+    if (recordedBy) {
+      await this.teamsService.assertCanManageTeamFinance(
+        recordedBy,
+        dto.teamId,
+        globalRole,
+      );
+    }
     const payment = this.paymentRepository.create({
       teamId: dto.teamId,
       userId: dto.userId,
@@ -448,8 +482,17 @@ export class FinanceService {
     };
   }
 
-  async confirmPayment(paymentId: number, managerId: number) {
+  async confirmPayment(
+    paymentId: number,
+    managerId: number,
+    globalRole?: string,
+  ) {
     const payment = await this.findPaymentOrThrow(paymentId);
+    await this.teamsService.assertCanManageTeamFinance(
+      managerId,
+      payment.teamId,
+      globalRole,
+    );
     if (payment.status !== PaymentStatus.PENDING_CONFIRMATION) {
       throw new BadRequestException('El pago no está pendiente de confirmación');
     }
@@ -467,8 +510,14 @@ export class FinanceService {
     paymentId: number,
     managerId: number,
     dto?: RejectPaymentDto,
+    globalRole?: string,
   ) {
     const payment = await this.findPaymentOrThrow(paymentId);
+    await this.teamsService.assertCanManageTeamFinance(
+      managerId,
+      payment.teamId,
+      globalRole,
+    );
     if (payment.status !== PaymentStatus.PENDING_CONFIRMATION) {
       throw new BadRequestException('El pago no está pendiente de confirmación');
     }
@@ -598,7 +647,18 @@ export class FinanceService {
     });
   }
 
-  async createTeamExpense(dto: CreateTeamExpenseDto, createdBy?: number) {
+  async createTeamExpense(
+    dto: CreateTeamExpenseDto,
+    createdBy?: number,
+    globalRole?: string,
+  ) {
+    if (createdBy) {
+      await this.teamsService.assertCanManageTeamFinance(
+        createdBy,
+        dto.teamId,
+        globalRole,
+      );
+    }
     const entry = this.ledgerRepository.create({
       teamId: dto.teamId,
       type: LedgerEntryType.EXPENSE,
@@ -695,7 +755,19 @@ export class FinanceService {
     };
   }
 
-  async getTeamPlayerBalances(teamId: number, season?: string) {
+  async getTeamPlayerBalances(
+    teamId: number,
+    season?: string,
+    viewerId?: number,
+    globalRole?: string,
+  ) {
+    if (viewerId) {
+      await this.teamsService.assertCanManageTeamFinance(
+        viewerId,
+        teamId,
+        globalRole,
+      );
+    }
     await this.syncMissingFeeCharges(teamId, season);
 
     const { roster } = await this.findRosterForFinance(teamId, season);
@@ -790,7 +862,11 @@ export class FinanceService {
     });
   }
 
-  async generateMonthlyQuota(dto: GenerateMonthlyQuotaDto, createdBy?: number) {
+  async generateMonthlyQuota(
+    dto: GenerateMonthlyQuotaDto,
+    createdBy?: number,
+    globalRole?: string,
+  ) {
     const monthNames = [
       'Enero',
       'Febrero',
@@ -818,6 +894,7 @@ export class FinanceService {
         type: FeeChargeType.MONTHLY_QUOTA,
       },
       createdBy,
+      globalRole,
     );
   }
 

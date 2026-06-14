@@ -32,6 +32,15 @@ import { GenerateMonthlyQuotaDto } from './dtos/generate-monthly-quota.dto';
 import { OpenTrainingCollectionDto } from './dtos/open-training-collection.dto';
 import { CreateTrainingExpenseDto } from './dtos/create-training-expense.dto';
 
+const FINANCE_MANAGER_ROLES = [
+  'super_admin',
+  'manager',
+  'admin',
+  'dt',
+  'tesorero',
+  'delegado',
+] as const;
+
 @Controller('finance')
 @UseGuards(AuthGuard('jwt'))
 export class FinanceController {
@@ -53,22 +62,34 @@ export class FinanceController {
 
   @Get('team/:teamId/players-balance')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   getTeamPlayerBalances(
     @Param('teamId', ParseIntPipe) teamId: number,
     @Query('season') season?: string,
+    @Req() req?: { user: { id: number; role?: string } },
   ) {
-    return this.financeService.getTeamPlayerBalances(teamId, season);
+    return this.financeService.getTeamPlayerBalances(
+      teamId,
+      season,
+      req!.user.id,
+      req!.user.role,
+    );
   }
 
   @Post('team/:teamId/fees/sync-roster')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   syncRosterFees(
     @Param('teamId', ParseIntPipe) teamId: number,
     @Query('season') season?: string,
+    @Req() req?: { user: { id: number; role?: string } },
   ) {
-    return this.financeService.syncMissingFeeCharges(teamId, season);
+    return this.financeService.syncMissingFeeCharges(
+      teamId,
+      season,
+      req!.user.id,
+      req!.user.role,
+    );
   }
 
   @Get('team/:teamId/ledger')
@@ -90,22 +111,30 @@ export class FinanceController {
 
   @Post('fees/batch')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   generateFeeBatch(
     @Body() dto: CreateFeeBatchDto,
-    @Req() req: { user: { id: number } },
+    @Req() req: { user: { id: number; role?: string } },
   ) {
-    return this.financeService.generateFeeBatch(dto, req.user.id);
+    return this.financeService.generateFeeBatch(
+      dto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Post('payments')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   registerPayment(
     @Body() dto: RegisterPaymentDto,
-    @Req() req: { user: { id: number } },
+    @Req() req: { user: { id: number; role?: string } },
   ) {
-    return this.financeService.registerPayment(dto, req.user.id);
+    return this.financeService.registerPayment(
+      dto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Post('payments/submit')
@@ -183,50 +212,63 @@ export class FinanceController {
 
   @Get('team/:teamId/payments/pending')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   getPendingPayments(@Param('teamId', ParseIntPipe) teamId: number) {
     return this.financeService.getPendingPayments(teamId);
   }
 
   @Patch('payments/:id/confirm')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   confirmPayment(
     @Param('id', ParseIntPipe) id: number,
-    @Req() req: { user: { id: number } },
+    @Req() req: { user: { id: number; role?: string } },
   ) {
-    return this.financeService.confirmPayment(id, req.user.id);
+    return this.financeService.confirmPayment(id, req.user.id, req.user.role);
   }
 
   @Patch('payments/:id/reject')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   rejectPayment(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: RejectPaymentDto,
-    @Req() req: { user: { id: number } },
+    @Req() req: { user: { id: number; role?: string } },
   ) {
-    return this.financeService.rejectPayment(id, req.user.id, dto);
+    return this.financeService.rejectPayment(
+      id,
+      req.user.id,
+      dto,
+      req.user.role,
+    );
   }
 
   @Post('expenses')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   createTeamExpense(
     @Body() dto: CreateTeamExpenseDto,
-    @Req() req: { user: { id: number } },
+    @Req() req: { user: { id: number; role?: string } },
   ) {
-    return this.financeService.createTeamExpense(dto, req.user.id);
+    return this.financeService.createTeamExpense(
+      dto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Post('fees/monthly-quota')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   generateMonthlyQuota(
     @Body() dto: GenerateMonthlyQuotaDto,
-    @Req() req: { user: { id: number } },
+    @Req() req: { user: { id: number; role?: string } },
   ) {
-    return this.financeService.generateMonthlyQuota(dto, req.user.id);
+    return this.financeService.generateMonthlyQuota(
+      dto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Get('team/:teamId/quota-overview')
@@ -245,7 +287,7 @@ export class FinanceController {
 
   @Post('team/:teamId/quota-reminders')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin')
+  @Roles(...FINANCE_MANAGER_ROLES)
   sendQuotaReminders(
     @Param('teamId', ParseIntPipe) teamId: number,
     @Query('concept') concept: string | undefined,

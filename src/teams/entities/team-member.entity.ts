@@ -12,6 +12,8 @@ import { Team } from './teams.entity';
 
 export enum TeamMemberRole {
   ADMIN = 'admin',
+  TREASURER = 'treasurer',
+  DELEGATE = 'delegate',
   PLAYER = 'player',
 }
 

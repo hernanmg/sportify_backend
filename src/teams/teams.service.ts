@@ -32,6 +32,8 @@ export interface MyTeamOption {
   categoryIds: number[];
   sportName?: string;
   isTeamAdmin?: boolean;
+  teamMemberRole?: TeamMemberRole;
+  canManageFinance?: boolean;
   team: ReturnType<typeof mapTeamWithCategories>;
 }
 
@@ -177,6 +179,48 @@ export class TeamsService {
     return !!member;
   }
 
+  /** Cuotas, pagos, gastos y caja del equipo. */
+  async canManageTeamFinance(
+    userId: number,
+    teamId: number,
+    globalRole?: string,
+  ): Promise<boolean> {
+    const platform = ['super_admin', 'manager', 'admin'];
+    if (globalRole && platform.includes(globalRole)) return true;
+
+    const member = await this.teamMemberRepository.findOne({
+      where: { userId, teamId },
+    });
+    const financeTeamRoles = [
+      TeamMemberRole.ADMIN,
+      TeamMemberRole.TREASURER,
+      TeamMemberRole.DELEGATE,
+    ];
+    if (member && financeTeamRoles.includes(member.role)) {
+      return true;
+    }
+
+    const staffGlobal = ['dt', 'tesorero', 'delegado'];
+    if (globalRole && staffGlobal.includes(globalRole)) {
+      return this.isTeamMember(userId, teamId);
+    }
+
+    return false;
+  }
+
+  async assertCanManageTeamFinance(
+    userId: number,
+    teamId: number,
+    globalRole?: string,
+  ): Promise<void> {
+    const ok = await this.canManageTeamFinance(userId, teamId, globalRole);
+    if (!ok) {
+      throw new ForbiddenException(
+        'No tenés permisos de finanzas en este equipo',
+      );
+    }
+  }
+
   /** DT / admins del equipo (tabla team_members, rol admin). */
   async listTeamAdminUserIds(teamId: number): Promise<number[]> {
     const members = await this.teamMemberRepository.find({
@@ -235,6 +279,8 @@ export class TeamsService {
       admin: 75,
       dt: 65,
       team_captain: 60,
+      tesorero: 55,
+      delegado: 50,
       player: 40,
       guest: 10,
     };
@@ -844,6 +890,12 @@ export class TeamsService {
         categoryIds: mapped.categoryIds ?? [],
         sportName: team.sport?.name,
         isTeamAdmin: membership.role === TeamMemberRole.ADMIN,
+        teamMemberRole: membership.role,
+        canManageFinance: [
+          TeamMemberRole.ADMIN,
+          TeamMemberRole.TREASURER,
+          TeamMemberRole.DELEGATE,
+        ].includes(membership.role),
         team: mapped,
       });
     }
