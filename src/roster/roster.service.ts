@@ -128,6 +128,48 @@ export class RosterService {
     throw new ForbiddenException('No pertenecés a este equipo');
   }
 
+  private filterUpdateDtoForPlayerSelfEdit(
+    dto: UpdateRosterDto,
+  ): UpdateRosterDto {
+    const allowed: UpdateRosterDto = {};
+    if (dto.documentNumber !== undefined) {
+      allowed.documentNumber = dto.documentNumber;
+    }
+    if (dto.emergencyContact !== undefined) {
+      allowed.emergencyContact = dto.emergencyContact;
+    }
+    if (dto.medicalCertificateDate !== undefined) {
+      allowed.medicalCertificateDate = dto.medicalCertificateDate;
+    }
+    if (dto.medicalCertificateExpires !== undefined) {
+      allowed.medicalCertificateExpires = dto.medicalCertificateExpires;
+    }
+    if (dto.position !== undefined) {
+      allowed.position = dto.position;
+    }
+    return allowed;
+  }
+
+  private assertCanUpdateRoster(
+    roster: PlayerRoster,
+    dto: UpdateRosterDto,
+    actorUserId: number,
+    actorRole?: string,
+  ): UpdateRosterDto {
+    if (this.isElevatedRole(actorRole)) {
+      return dto;
+    }
+
+    const ownerUserId = roster.player?.user_id;
+    if (ownerUserId !== actorUserId) {
+      throw new ForbiddenException(
+        'No tenés permiso para modificar esta ficha',
+      );
+    }
+
+    return this.filterUpdateDtoForPlayerSelfEdit(dto);
+  }
+
   private async resolveCategoryForTeam(
     teamId: number,
     categoryLabel: string,
@@ -499,44 +541,55 @@ export class RosterService {
     id: number,
     updateRosterDto: UpdateRosterDto,
     actorUserId?: number,
+    actorRole?: string,
   ): Promise<PlayerRoster> {
     const roster = await this.findOne(id);
     const previousNotes = roster.notes;
 
+    const dto =
+      actorUserId != null
+        ? this.assertCanUpdateRoster(
+            roster,
+            updateRosterDto,
+            actorUserId,
+            actorRole,
+          )
+        : updateRosterDto;
+
     // Si se está cambiando el número de camiseta, verificar que no esté ocupado
-    if (updateRosterDto.jerseyNumber && updateRosterDto.jerseyNumber !== roster.jerseyNumber) {
+    if (dto.jerseyNumber && dto.jerseyNumber !== roster.jerseyNumber) {
       const existingJersey = await this.rosterRepository.findOne({
         where: {
           teamId: roster.teamId,
-          jerseyNumber: updateRosterDto.jerseyNumber,
+          jerseyNumber: dto.jerseyNumber,
           season: roster.season,
           id: Not(id) // Excluir el registro actual
         }
       });
       if (existingJersey) {
-        throw new ConflictException(`El número ${updateRosterDto.jerseyNumber} ya está ocupado en la temporada ${roster.season}`);
+        throw new ConflictException(`El número ${dto.jerseyNumber} ya está ocupado en la temporada ${roster.season}`);
       }
     }
 
     // Actualizar campos
-    if (updateRosterDto.jerseyNumber) roster.jerseyNumber = updateRosterDto.jerseyNumber;
-    if (updateRosterDto.medicalCertificateDate) roster.medicalCertificateDate = new Date(updateRosterDto.medicalCertificateDate);
-    if (updateRosterDto.medicalCertificateExpires) roster.medicalCertificateExpires = new Date(updateRosterDto.medicalCertificateExpires);
-    if (updateRosterDto.isEnabled !== undefined) roster.isEnabled = updateRosterDto.isEnabled;
-    if (updateRosterDto.position) roster.position = updateRosterDto.position;
-    if (updateRosterDto.documentNumber) roster.documentNumber = updateRosterDto.documentNumber;
-    if (updateRosterDto.emergencyContact) roster.emergencyContact = updateRosterDto.emergencyContact;
-    if (updateRosterDto.medicalStatus) roster.medicalStatus = updateRosterDto.medicalStatus;
-    if (updateRosterDto.notes !== undefined) {
-      roster.notes = updateRosterDto.notes;
+    if (dto.jerseyNumber) roster.jerseyNumber = dto.jerseyNumber;
+    if (dto.medicalCertificateDate) roster.medicalCertificateDate = new Date(dto.medicalCertificateDate);
+    if (dto.medicalCertificateExpires) roster.medicalCertificateExpires = new Date(dto.medicalCertificateExpires);
+    if (dto.isEnabled !== undefined) roster.isEnabled = dto.isEnabled;
+    if (dto.position) roster.position = dto.position;
+    if (dto.documentNumber) roster.documentNumber = dto.documentNumber;
+    if (dto.emergencyContact !== undefined) roster.emergencyContact = dto.emergencyContact;
+    if (dto.medicalStatus) roster.medicalStatus = dto.medicalStatus;
+    if (dto.notes !== undefined) {
+      roster.notes = dto.notes;
     }
 
     const saved = await this.rosterRepository.save(roster);
 
     if (
       actorUserId &&
-      updateRosterDto.notes !== undefined &&
-      updateRosterDto.notes !== previousNotes
+      dto.notes !== undefined &&
+      dto.notes !== previousNotes
     ) {
       const playerName =
         [roster.player?.user?.firstName, roster.player?.user?.lastName]

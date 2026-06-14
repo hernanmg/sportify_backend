@@ -106,13 +106,25 @@ export class RosterController {
   }
 
   @Patch(':id')
-  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
+  @Roles(
+    'super_admin',
+    'manager',
+    'admin',
+    'team_captain',
+    'dt',
+    'player',
+  )
   async update(
     @Param('id') id: number,
     @Body() updateRosterDto: UpdateRosterDto,
-    @Request() req: { user: { id: number } },
+    @Request() req: { user: { id: number; role?: string } },
   ) {
-    return await this.rosterService.update(id, updateRosterDto, req.user.id);
+    return await this.rosterService.update(
+      id,
+      updateRosterDto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Patch(':id/link-user')
