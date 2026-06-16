@@ -348,6 +348,14 @@ export class TeamsService {
     const taken = new Set(usedJerseys.map((r) => r.jerseyNumber));
     while (taken.has(nextJersey)) nextJersey++;
 
+    const siblingRows = await this.rosterRepository.find({
+      where: { playerId: player.id, teamId, season },
+      order: { updatedAt: 'DESC' },
+    });
+    const template = siblingRows.find(
+      (r) => r.documentNumber && !r.documentNumber.startsWith('USR-'),
+    ) ?? siblingRows[0];
+
     for (const categoryId of categoryIds) {
       const category = await this.categoryRepository.findOne({
         where: { id: categoryId },
@@ -359,10 +367,14 @@ export class TeamsService {
       });
       if (exists) continue;
 
-      const jerseyConflict = usedJerseys.find(
-        (r) => r.jerseyNumber === nextJersey && r.playerId !== player!.id,
-      );
-      const jersey = jerseyConflict ? nextJersey + 100 : nextJersey;
+      const jersey =
+        template?.jerseyNumber ??
+        (() => {
+          const jerseyConflict = usedJerseys.find(
+            (r) => r.jerseyNumber === nextJersey && r.playerId !== player!.id,
+          );
+          return jerseyConflict ? nextJersey + 100 : nextJersey;
+        })();
 
       await this.rosterRepository.save(
         this.rosterRepository.create({
@@ -372,10 +384,17 @@ export class TeamsService {
           season,
           categoryId,
           category: category.name,
-          isEnabled: true,
-          position: 'player',
-          documentNumber: `USR-${userId}`,
-          medicalStatus: 'pending',
+          isEnabled: template?.isEnabled ?? true,
+          position: template?.position ?? 'player',
+          documentNumber:
+            template?.documentNumber &&
+            !template.documentNumber.startsWith('USR-')
+              ? template.documentNumber
+              : `USR-${userId}`,
+          emergencyContact: template?.emergencyContact ?? null,
+          medicalCertificateDate: template?.medicalCertificateDate ?? null,
+          medicalCertificateExpires: template?.medicalCertificateExpires ?? null,
+          medicalStatus: template?.medicalStatus ?? 'pending',
         }),
       );
     }

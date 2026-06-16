@@ -188,7 +188,184 @@ export class RosterService {
 
   /** Crea fichas faltantes para integrantes del equipo (p. ej. jugador que se unió sin plantel). */
   async ensureTeamMembersOnRoster(teamId: number): Promise<void> {
+    await this.consolidateDuplicatePlayers(teamId);
     await this.syncMissingMemberRosters(teamId);
+    await this.propagateIdentityAcrossCategories(teamId);
+  }
+
+  private isPlaceholderDocument(documentNumber?: string | null): boolean {
+    return !!documentNumber?.trim().startsWith('USR-');
+  }
+
+  /** Unifica jugadores duplicados (mismo user en el mismo equipo). */
+  private async consolidateDuplicatePlayers(teamId: number): Promise<void> {
+    const players = await this.playerRepository.find({
+      where: { team_id: teamId },
+    });
+    const byUserId = new Map<number, Player[]>();
+    for (const p of players) {
+      if (!p.user_id) continue;
+      const list = byUserId.get(p.user_id) ?? [];
+      list.push(p);
+      byUserId.set(p.user_id, list);
+    }
+
+    for (const list of byUserId.values()) {
+      if (list.length <= 1) continue;
+      const primary =
+        list.find((p) => p.user_id) ?? list.sort((a, b) => a.id - b.id)[0];
+      for (const dup of list) {
+        if (dup.id === primary.id) continue;
+        await this.rosterRepository.update(
+          { playerId: dup.id, teamId },
+          { playerId: primary.id },
+        );
+        await this.playerRepository.remove(dup);
+      }
+    }
+  }
+
+  /** Copia DNI, apto y dorsal entre fichas del mismo jugador (multi-categoría). */
+  private async propagateIdentityAcrossCategories(
+    teamId: number,
+    season?: string,
+  ): Promise<void> {
+    const where: Record<string, unknown> = { teamId };
+    if (season?.trim()) {
+      const variants = this.seasonFilterVariants(season);
+      where.season = variants.length === 1 ? variants[0] : In(variants);
+    }
+
+    const rows = await this.rosterRepository.find({
+      where,
+      relations: ['player', 'player.user'],
+      order: { updatedAt: 'DESC' },
+    });
+
+    const byPlayer = new Map<number, PlayerRoster[]>();
+    for (const row of rows) {
+      const list = byPlayer.get(row.playerId) ?? [];
+      list.push(row);
+      byPlayer.set(row.playerId, list);
+    }
+
+    for (const group of byPlayer.values()) {
+      if (group.length <= 1) continue;
+
+      const canonical =
+        group.find(
+          (r) =>
+            r.documentNumber &&
+            !this.isPlaceholderDocument(r.documentNumber),
+        ) ?? group[0];
+
+      for (const row of group) {
+        if (row.id === canonical.id) continue;
+
+        let changed = false;
+        if (
+          this.isPlaceholderDocument(row.documentNumber) &&
+          canonical.documentNumber &&
+          !this.isPlaceholderDocument(canonical.documentNumber)
+        ) {
+          row.documentNumber = canonical.documentNumber;
+          changed = true;
+        }
+        if (!row.emergencyContact && canonical.emergencyContact) {
+          row.emergencyContact = canonical.emergencyContact;
+          changed = true;
+        }
+        if (!row.medicalCertificateDate && canonical.medicalCertificateDate) {
+          row.medicalCertificateDate = canonical.medicalCertificateDate;
+          changed = true;
+        }
+        if (
+          !row.medicalCertificateExpires &&
+          canonical.medicalCertificateExpires
+        ) {
+          row.medicalCertificateExpires = canonical.medicalCertificateExpires;
+          changed = true;
+        }
+        if (
+          (row.medicalStatus === 'pending' ||
+            row.medicalStatus === 'expired') &&
+          canonical.medicalStatus === 'approved' &&
+          canonical.medicalCertificateExpires &&
+          new Date(canonical.medicalCertificateExpires) > new Date()
+        ) {
+          row.medicalStatus = 'approved';
+          changed = true;
+        }
+        if (row.jerseyNumber !== canonical.jerseyNumber) {
+          row.jerseyNumber = canonical.jerseyNumber;
+          changed = true;
+        }
+        if (row.position !== canonical.position) {
+          row.position = canonical.position;
+          changed = true;
+        }
+        if (changed) {
+          await this.rosterRepository.save(row);
+        }
+      }
+    }
+  }
+
+  private async propagateIdentityFromRow(
+    source: PlayerRoster,
+    fields: UpdateRosterDto,
+  ): Promise<void> {
+    const siblings = await this.rosterRepository.find({
+      where: {
+        playerId: source.playerId,
+        teamId: source.teamId,
+        season: source.season,
+        id: Not(source.id),
+      },
+    });
+    if (!siblings.length) return;
+
+    for (const row of siblings) {
+      let dirty = false;
+      if (fields.documentNumber && row.documentNumber !== fields.documentNumber) {
+        row.documentNumber = fields.documentNumber;
+        dirty = true;
+      }
+      if (
+        fields.emergencyContact !== undefined &&
+        row.emergencyContact !== fields.emergencyContact
+      ) {
+        row.emergencyContact = fields.emergencyContact;
+        dirty = true;
+      }
+      if (fields.medicalCertificateDate) {
+        row.medicalCertificateDate = new Date(fields.medicalCertificateDate);
+        dirty = true;
+      }
+      if (fields.medicalCertificateExpires) {
+        row.medicalCertificateExpires = new Date(
+          fields.medicalCertificateExpires,
+        );
+        dirty = true;
+      }
+      if (fields.medicalStatus && row.medicalStatus !== fields.medicalStatus) {
+        row.medicalStatus = fields.medicalStatus;
+        dirty = true;
+      }
+      if (fields.jerseyNumber && row.jerseyNumber !== fields.jerseyNumber) {
+        row.jerseyNumber = fields.jerseyNumber;
+        dirty = true;
+      }
+      if (fields.position && row.position !== fields.position) {
+        row.position = fields.position;
+        dirty = true;
+      }
+      if (fields.isEnabled !== undefined && row.isEnabled !== fields.isEnabled) {
+        row.isEnabled = fields.isEnabled;
+        dirty = true;
+      }
+      if (dirty) await this.rosterRepository.save(row);
+    }
   }
 
   private rosterRowKey(row: PlayerRoster): string {
@@ -560,6 +737,7 @@ export class RosterService {
 
       if (userId != null && this.isElevatedRole(globalRole)) {
         await this.syncMissingMemberRosters(teamId);
+        await this.propagateIdentityAcrossCategories(teamId, season);
       }
 
       let effectiveCategoryIds = categoryIds;
@@ -671,8 +849,8 @@ export class RosterService {
           teamId: roster.teamId,
           jerseyNumber: dto.jerseyNumber,
           season: roster.season,
-          id: Not(id) // Excluir el registro actual
-        }
+          playerId: Not(roster.playerId),
+        },
       });
       if (existingJersey) {
         throw new ConflictException(`El número ${dto.jerseyNumber} ya está ocupado en la temporada ${roster.season}`);
@@ -693,6 +871,8 @@ export class RosterService {
     }
 
     const saved = await this.rosterRepository.save(roster);
+
+    await this.propagateIdentityFromRow(saved, dto);
 
     if (
       actorUserId &&
