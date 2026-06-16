@@ -46,11 +46,15 @@ export class RosterService {
   ) {}
 
   private mapRosterCategory(row: PlayerRoster): PlayerRoster {
-    const label = shortCategoryLabel(
-      row.categoryRef?.name ?? row.category,
-    );
-    if (label && label !== row.category) {
+    const raw =
+      row.categoryRef?.name?.trim() ||
+      row.category?.trim() ||
+      '';
+    const label = shortCategoryLabel(raw);
+    if (label) {
       row.category = label;
+    } else if (raw && raw !== 'Masculino' && raw !== 'Femenino') {
+      row.category = raw;
     }
     return row;
   }
