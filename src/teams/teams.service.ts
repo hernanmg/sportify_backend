@@ -460,6 +460,10 @@ export class TeamsService {
       categoryIds = dto.categoryIds?.length
         ? dto.categoryIds
         : ((invite.categoryIds as number[] | undefined) ?? []);
+      if (!categoryIds.length) {
+        const mapped = mapTeamWithCategories(invite.team);
+        categoryIds = mapped.categoryIds ?? [];
+      }
     }
 
     if (categoryIds.length) {

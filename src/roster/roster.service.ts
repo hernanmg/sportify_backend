@@ -17,8 +17,9 @@ import { Team } from '../teams/entities/teams.entity';
 import { User } from '../users/entities/user.entity';
 import { Category } from '../categories/entities/category.entity';
 import { TeamCategory } from '../teams/entities/team-category.entity';
-import { TeamMember } from '../teams/entities/team-member.entity';
+import { TeamMember, TeamMemberRole } from '../teams/entities/team-member.entity';
 import { TeamAuditService } from '../teams/team-audit.service';
+import { TeamsService } from '../teams/teams.service';
 import { shortCategoryLabel } from '../common/category-label';
 
 @Injectable()
@@ -40,6 +41,8 @@ export class RosterService {
     private readonly teamMemberRepository: Repository<TeamMember>,
     @Inject(forwardRef(() => TeamAuditService))
     private readonly teamAuditService: TeamAuditService,
+    @Inject(forwardRef(() => TeamsService))
+    private readonly teamsService: TeamsService,
   ) {}
 
   private mapRosterCategory(row: PlayerRoster): PlayerRoster {
@@ -132,6 +135,9 @@ export class RosterService {
     dto: UpdateRosterDto,
   ): UpdateRosterDto {
     const allowed: UpdateRosterDto = {};
+    if (dto.jerseyNumber !== undefined) {
+      allowed.jerseyNumber = dto.jerseyNumber;
+    }
     if (dto.documentNumber !== undefined) {
       allowed.documentNumber = dto.documentNumber;
     }
@@ -146,6 +152,12 @@ export class RosterService {
     }
     if (dto.position !== undefined) {
       allowed.position = dto.position;
+    }
+    if (dto.medicalStatus !== undefined) {
+      allowed.medicalStatus = dto.medicalStatus;
+    }
+    if (dto.isEnabled !== undefined) {
+      allowed.isEnabled = dto.isEnabled;
     }
     return allowed;
   }
@@ -168,6 +180,35 @@ export class RosterService {
     }
 
     return this.filterUpdateDtoForPlayerSelfEdit(dto);
+  }
+
+  private async syncMissingMemberRosters(teamId: number): Promise<void> {
+    const team = await this.teamRepository.findOne({
+      where: { id: teamId },
+      relations: ['teamCategories'],
+    });
+    if (!team) return;
+
+    const categoryIds =
+      team.teamCategories
+        ?.map((tc) => tc.categoryId)
+        .filter((id): id is number => !!id) ?? [];
+    if (!categoryIds.length) return;
+
+    const members = await this.teamMemberRepository.find({
+      where: { teamId, role: TeamMemberRole.PLAYER },
+    });
+
+    for (const member of members) {
+      const onRoster = await this.countRosterRowsForUser(member.userId, teamId);
+      if (onRoster === 0) {
+        await this.teamsService.ensureRosterEntries(
+          member.userId,
+          teamId,
+          categoryIds,
+        );
+      }
+    }
   }
 
   private async resolveCategoryForTeam(
@@ -466,6 +507,10 @@ export class RosterService {
         await this.assertCanViewTeamRoster(userId, teamId, globalRole);
       }
 
+      if (userId != null && this.isElevatedRole(globalRole)) {
+        await this.syncMissingMemberRosters(teamId);
+      }
+
       let effectiveCategoryIds = categoryIds;
       if (userId != null && !this.isElevatedRole(globalRole)) {
         const onRoster = await this.countRosterRowsForUser(userId, teamId);
@@ -502,7 +547,10 @@ export class RosterService {
         });
       };
 
-      const rosters = await load(season);
+      let rosters = await load(season);
+      if ((!rosters || rosters.length === 0) && season) {
+        rosters = await load(undefined);
+      }
       return (rosters || []).map((r) => this.mapRosterCategory(r));
     } catch (error) {
       console.error('Error in findByTeam rosters:', error);
