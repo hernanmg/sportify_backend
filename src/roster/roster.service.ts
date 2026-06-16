@@ -182,6 +182,37 @@ export class RosterService {
     return this.filterUpdateDtoForPlayerSelfEdit(dto);
   }
 
+  /** Crea fichas faltantes para integrantes del equipo (p. ej. jugador que se unió sin plantel). */
+  async ensureTeamMembersOnRoster(teamId: number): Promise<void> {
+    await this.syncMissingMemberRosters(teamId);
+  }
+
+  private rosterRowKey(row: PlayerRoster): string {
+    return `${row.playerId}:${row.categoryId ?? row.category}`;
+  }
+
+  /** DT/staff: temporada activa + fichas de otras temporadas que no tienen fila en la actual. */
+  private mergeRosterRowsForStaff(
+    seasonRows: PlayerRoster[],
+    allRows: PlayerRoster[],
+    season?: string,
+  ): PlayerRoster[] {
+    if (!season?.trim()) {
+      return allRows;
+    }
+    const keysInSeason = new Set(seasonRows.map((r) => this.rosterRowKey(r)));
+    const merged = [...seasonRows];
+    for (const row of allRows) {
+      const key = this.rosterRowKey(row);
+      if (!keysInSeason.has(key)) {
+        merged.push(row);
+        keysInSeason.add(key);
+      }
+    }
+    merged.sort((a, b) => a.jerseyNumber - b.jerseyNumber);
+    return merged;
+  }
+
   private async syncMissingMemberRosters(teamId: number): Promise<void> {
     const team = await this.teamRepository.findOne({
       where: { id: teamId },
@@ -195,15 +226,31 @@ export class RosterService {
         .filter((id): id is number => !!id) ?? [];
     if (!categoryIds.length) return;
 
-    const members = await this.teamMemberRepository.find({
-      where: { teamId, role: TeamMemberRole.PLAYER },
-    });
+    const userIds = new Set<number>();
 
+    const members = await this.teamMemberRepository.find({ where: { teamId } });
     for (const member of members) {
-      const onRoster = await this.countRosterRowsForUser(member.userId, teamId);
+      if (member.role === TeamMemberRole.ADMIN) {
+        const linkedPlayer = await this.playerRepository.findOne({
+          where: { user_id: member.userId, team_id: teamId },
+        });
+        if (!linkedPlayer) continue;
+      }
+      userIds.add(member.userId);
+    }
+
+    const playersOnTeam = await this.playerRepository.find({
+      where: { team_id: teamId },
+    });
+    for (const player of playersOnTeam) {
+      if (player.user_id) userIds.add(player.user_id);
+    }
+
+    for (const userId of userIds) {
+      const onRoster = await this.countRosterRowsForUser(userId, teamId);
       if (onRoster === 0) {
         await this.teamsService.ensureRosterEntries(
-          member.userId,
+          userId,
           teamId,
           categoryIds,
         );
@@ -548,9 +595,18 @@ export class RosterService {
       };
 
       let rosters = await load(season);
-      if ((!rosters || rosters.length === 0) && season) {
-        rosters = await load(undefined);
+      const allRosters = await load(undefined);
+
+      if (userId != null && this.isElevatedRole(globalRole)) {
+        rosters = this.mergeRosterRowsForStaff(
+          rosters ?? [],
+          allRosters ?? [],
+          season,
+        );
+      } else if ((!rosters || rosters.length === 0) && season) {
+        rosters = allRosters;
       }
+
       return (rosters || []).map((r) => this.mapRosterCategory(r));
     } catch (error) {
       console.error('Error in findByTeam rosters:', error);

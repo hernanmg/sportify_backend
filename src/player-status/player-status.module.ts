@@ -10,6 +10,7 @@ import { PlayerStatusService } from './player-status.service';
 import { PlayerStatusController } from './player-status.controller';
 import { FinanceModule } from '../finance/finance.module';
 import { TeamsModule } from '../teams/teams.module';
+import { RosterModule } from '../roster/roster.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PlayerStatusSchedulerService } from './player-status-scheduler.service';
 
@@ -24,6 +25,7 @@ import { PlayerStatusSchedulerService } from './player-status-scheduler.service'
     ]),
     forwardRef(() => FinanceModule),
     forwardRef(() => TeamsModule),
+    forwardRef(() => RosterModule),
     forwardRef(() => NotificationsModule),
   ],
   controllers: [PlayerStatusController],

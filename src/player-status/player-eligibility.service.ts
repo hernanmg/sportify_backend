@@ -1,10 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PlayerImpediment } from './entities/player-impediment.entity';
 import { PlayerFeeOverride } from './entities/player-fee-override.entity';
 import { PlayerStatusAuditLog } from './entities/player-status-audit.entity';
 import { PlayerRoster } from '../roster/entities/player-roster.entity';
+import { RosterService } from '../roster/roster.service';
 import {
   EligibilityColor,
   EligibilityStatus,
@@ -56,7 +61,31 @@ export class PlayerEligibilityService {
     @InjectRepository(PlayerRoster)
     private readonly rosterRepository: Repository<PlayerRoster>,
     private readonly financeService: FinanceService,
+    @Inject(forwardRef(() => RosterService))
+    private readonly rosterService: RosterService,
   ) {}
+
+  private seasonFilterVariants(season: string): string[] {
+    const variants = new Set<string>([season.trim()]);
+    const apertura = /^(\d{4})-Apertura$/i.exec(season);
+    if (apertura) {
+      const y = parseInt(apertura[1], 10);
+      variants.add(`${y - 1}-${y}`);
+    }
+    const clausura = /^(\d{4})-Clausura$/i.exec(season);
+    if (clausura) {
+      const y = parseInt(clausura[1], 10);
+      variants.add(`${y}-${y + 1}`);
+    }
+    const legacy = /^(\d{4})-(\d{4})$/.exec(season);
+    if (legacy) {
+      const start = parseInt(legacy[1], 10);
+      const end = parseInt(legacy[2], 10);
+      variants.add(`${end}-Apertura`);
+      variants.add(`${start}-Clausura`);
+    }
+    return [...variants];
+  }
 
   private currentSeason(): string {
     const year = new Date().getFullYear();
@@ -147,24 +176,24 @@ export class PlayerEligibilityService {
   ): Promise<PlayerEligibilityView[]> {
     const resolvedSeason = season?.trim() || this.currentSeason();
     await this.deactivateExpiredImpediments(teamId);
+    await this.rosterService.ensureTeamMembersOnRoster(teamId);
 
-    const roster = await this.rosterRepository.find({
-      where: { teamId, season: resolvedSeason },
+    const allRoster = await this.rosterRepository.find({
+      where: { teamId },
       relations: ['player', 'player.user'],
       order: { jerseyNumber: 'ASC' },
     });
 
-    if (roster.length === 0) {
-      const fallback = await this.rosterRepository.find({
-        where: { teamId },
-        relations: ['player', 'player.user'],
-        order: { jerseyNumber: 'ASC' },
-      });
-      roster.push(...fallback);
+    const seasonVariants = new Set(this.seasonFilterVariants(resolvedSeason));
+    const seenUsers = new Map<number, PlayerRoster>();
+
+    for (const row of allRoster) {
+      const uid = row.player?.user_id;
+      if (!uid || !seasonVariants.has(row.season)) continue;
+      if (!seenUsers.has(uid)) seenUsers.set(uid, row);
     }
 
-    const seenUsers = new Map<number, PlayerRoster>();
-    for (const row of roster) {
+    for (const row of allRoster) {
       const uid = row.player?.user_id;
       if (!uid || seenUsers.has(uid)) continue;
       seenUsers.set(uid, row);
