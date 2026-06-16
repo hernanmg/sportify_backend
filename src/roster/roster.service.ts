@@ -190,7 +190,27 @@ export class RosterService {
   async ensureTeamMembersOnRoster(teamId: number): Promise<void> {
     await this.consolidateDuplicatePlayers(teamId);
     await this.syncMissingMemberRosters(teamId);
+    await this.backfillRosterCategoryIds(teamId);
     await this.propagateIdentityAcrossCategories(teamId);
+  }
+
+  private async backfillRosterCategoryIds(teamId: number): Promise<void> {
+    const rows = await this.rosterRepository.find({ where: { teamId } });
+    for (const row of rows) {
+      if (row.categoryId || !row.category?.trim()) continue;
+      try {
+        const resolved = await this.resolveCategoryForTeam(
+          teamId,
+          row.category,
+        );
+        row.categoryId = resolved.categoryId;
+        const label = shortCategoryLabel(resolved.categoryName);
+        if (label) row.category = label;
+        await this.rosterRepository.save(row);
+      } catch {
+        // omitir filas con categoría inválida
+      }
+    }
   }
 
   private isPlaceholderDocument(documentNumber?: string | null): boolean {

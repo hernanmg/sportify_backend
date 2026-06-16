@@ -9,7 +9,9 @@ import { PlayerImpediment } from './entities/player-impediment.entity';
 import { PlayerFeeOverride } from './entities/player-fee-override.entity';
 import { PlayerStatusAuditLog } from './entities/player-status-audit.entity';
 import { PlayerRoster } from '../roster/entities/player-roster.entity';
+import { Category } from '../categories/entities/category.entity';
 import { RosterService } from '../roster/roster.service';
+import { shortCategoryLabel } from '../common/category-label';
 import {
   EligibilityColor,
   EligibilityStatus,
@@ -60,6 +62,8 @@ export class PlayerEligibilityService {
     private readonly auditRepository: Repository<PlayerStatusAuditLog>,
     @InjectRepository(PlayerRoster)
     private readonly rosterRepository: Repository<PlayerRoster>,
+    @InjectRepository(Category)
+    private readonly categoryRepository: Repository<Category>,
     private readonly financeService: FinanceService,
     @Inject(forwardRef(() => RosterService))
     private readonly rosterService: RosterService,
@@ -157,16 +161,34 @@ export class PlayerEligibilityService {
     teamId: number,
     categoryId: number,
   ): Promise<number[]> {
-    const rows = await this.rosterRepository.find({
-      where: { teamId, categoryId },
-      relations: ['player'],
+    const target = await this.categoryRepository.findOne({
+      where: { id: categoryId },
     });
-    const ids: number[] = [];
+    const targetLabel = shortCategoryLabel(target?.name ?? '');
+
+    const rows = await this.rosterRepository.find({
+      where: { teamId },
+      relations: ['player', 'categoryRef'],
+    });
+
+    const ids = new Set<number>();
     for (const row of rows) {
       const uid = row.player?.user_id;
-      if (uid) ids.push(uid);
+      if (!uid) continue;
+
+      if (row.categoryId === categoryId) {
+        ids.add(uid);
+        continue;
+      }
+
+      const rowLabel = shortCategoryLabel(
+        row.categoryRef?.name ?? row.category,
+      );
+      if (targetLabel && rowLabel && rowLabel === targetLabel) {
+        ids.add(uid);
+      }
     }
-    return ids;
+    return [...ids];
   }
 
   async getTeamEligibility(

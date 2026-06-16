@@ -4,6 +4,7 @@ import { PlayerImpediment } from './entities/player-impediment.entity';
 import { PlayerFeeOverride } from './entities/player-fee-override.entity';
 import { PlayerStatusAuditLog } from './entities/player-status-audit.entity';
 import { PlayerRoster } from '../roster/entities/player-roster.entity';
+import { Category } from '../categories/entities/category.entity';
 import { User } from '../users/entities/user.entity';
 import { PlayerEligibilityService } from './player-eligibility.service';
 import { PlayerStatusService } from './player-status.service';
@@ -21,6 +22,7 @@ import { PlayerStatusSchedulerService } from './player-status-scheduler.service'
       PlayerFeeOverride,
       PlayerStatusAuditLog,
       PlayerRoster,
+      Category,
       User,
     ]),
     forwardRef(() => FinanceModule),

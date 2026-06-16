@@ -183,15 +183,22 @@ export class ConvocationsService {
       categoryId?: number;
       categoryIds?: number[];
     } | null;
-    const categoryId = meta?.categoryId ?? meta?.categoryIds?.[0];
-    if (!categoryId) {
+    const categoryIds = meta?.categoryIds?.length
+      ? meta.categoryIds
+      : meta?.categoryId != null
+        ? [meta.categoryId]
+        : [];
+    if (!categoryIds.length) {
       return list;
     }
-    const rosterRows = await this.eligibilityService.getRosterUserIdsByCategory(
-      convocation.teamId,
-      categoryId,
-    );
-    const allowed = new Set(rosterRows);
+    const allowed = new Set<number>();
+    for (const categoryId of categoryIds) {
+      const ids = await this.eligibilityService.getRosterUserIdsByCategory(
+        convocation.teamId,
+        categoryId,
+      );
+      for (const id of ids) allowed.add(id);
+    }
     return list.filter((e) => allowed.has(e.userId));
   }
 
