@@ -19,6 +19,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { SetConvocationSquadDto } from './dtos/convocation-squad.dto';
+import { AddConvocationPlayersDto } from './dtos/add-convocation-players.dto';
 
 @Controller('convocations')
 @UseGuards(AuthGuard('jwt'))
@@ -110,6 +111,29 @@ export class ConvocationsController {
   @Get(':id/responses')
   async getResponses(@Param('id', ParseIntPipe) id: number) {
     return await this.convocationsService.getConvocationResponses(id);
+  }
+
+  @Post(':id/squad/add')
+  @UseGuards(RolesGuard)
+  @Roles('super_admin', 'manager', 'admin', 'dt')
+  @HttpCode(HttpStatus.OK)
+  async addPlayers(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AddConvocationPlayersDto,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    const conv = await this.convocationsService.findOne(id);
+    await this.convocationsService.assertCanAddToSentConvocation(
+      req.user.id,
+      conv.teamId,
+      req.user.role,
+    );
+    return await this.convocationsService.addConvokedPlayers(
+      id,
+      dto.userIds,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Put(':id/squad')

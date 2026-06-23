@@ -109,6 +109,43 @@ export class ConvocationsService {
     );
   }
 
+  async assertCanAddToSentConvocation(
+    userId: number,
+    teamId: number,
+    globalRole?: string,
+  ): Promise<void> {
+    const allowed = ['super_admin', 'manager', 'admin', 'dt'];
+    if (!globalRole || !allowed.includes(globalRole)) {
+      throw new ForbiddenException(
+        'Solo DT o administradores pueden sumar jugadores a convocatorias enviadas',
+      );
+    }
+    if (['super_admin', 'manager', 'admin'].includes(globalRole)) {
+      return;
+    }
+    const isMember = await this.teamsService.isTeamMember(userId, teamId);
+    if (!isMember) {
+      throw new ForbiddenException('No pertenecés a este equipo');
+    }
+  }
+
+  private buildMatchInvitationDetails(convocation: SportEvent) {
+    return {
+      date: convocation.eventDate.toISOString(),
+      opponent: convocation.opponentName || 'Por definir',
+      location: [
+        convocation.location,
+        convocation.courtNumber
+          ? `Cancha ${convocation.courtNumber}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      courtNumber: convocation.courtNumber,
+      isOfficial: convocation.isOfficialMatch,
+    };
+  }
+
   async createConvocation(
     convocationDto: ConvocationDto,
     createdBy: number,
@@ -264,6 +301,115 @@ export class ConvocationsService {
     return this.findOne(convocationId);
   }
 
+  async addConvokedPlayers(
+    convocationId: number,
+    userIds: number[],
+    actorId: number,
+    globalRole?: string,
+  ): Promise<{ event: SportEvent; added: number[]; skipped: number[] }> {
+    const convocation = await this.findOne(convocationId);
+    await this.assertCanAddToSentConvocation(
+      actorId,
+      convocation.teamId,
+      globalRole,
+    );
+
+    const addableStatuses = new Set<SportEventStatus>([
+      SportEventStatus.SCHEDULED,
+      SportEventStatus.CONFIRMED,
+      SportEventStatus.IN_PROGRESS,
+      SportEventStatus.POSTPONED,
+    ]);
+    if (!addableStatuses.has(convocation.status)) {
+      throw new BadRequestException(
+        convocation.status === SportEventStatus.DRAFT
+          ? 'La convocatoria aún está en borrador; editá el plantel desde el formulario'
+          : 'No se pueden sumar jugadores a esta convocatoria',
+      );
+    }
+
+    const uniqueIds = [...new Set(userIds)];
+    if (!uniqueIds.length) {
+      throw new BadRequestException('Indicá al menos un jugador');
+    }
+
+    const eligible = await this.getEligibleRoster(convocationId);
+    const eligibleIds = new Set(eligible.map((e) => e.userId));
+
+    const existing = await this.participantRepository.find({
+      where: { eventId: convocationId },
+    });
+    const existingByUser = new Map(existing.map((p) => [p.userId, p]));
+
+    const eligibility = await this.eligibilityService.getTeamEligibility(
+      convocation.teamId,
+    );
+    const byUser = new Map(eligibility.map((e) => [e.userId, e]));
+
+    const added: number[] = [];
+    const skipped: number[] = [];
+
+    for (const userId of uniqueIds) {
+      if (!eligibleIds.has(userId)) {
+        throw new BadRequestException(
+          `El jugador ${userId} no está en el plantel elegible para esta convocatoria`,
+        );
+      }
+
+      const prev = existingByUser.get(userId);
+      if (prev?.isConvoked) {
+        skipped.push(userId);
+        continue;
+      }
+
+      const entry = byUser.get(userId);
+      if (!entry) {
+        throw new BadRequestException(
+          `El jugador ${userId} no está en el plantel del equipo`,
+        );
+      }
+
+      const row: Partial<EventParticipant> = {
+        eventId: convocationId,
+        userId: entry.userId,
+        status: ParticipantStatus.PENDING,
+        role: ParticipantRole.PLAYER,
+        isConvoked: true,
+        eligibilityStatus: entry.status,
+        eligibilityDetail: entry.reason,
+        feeOverrideBy: entry.feeOverride?.overriddenBy,
+        feeOverrideAt: entry.feeOverride
+          ? new Date(entry.feeOverride.overriddenAt)
+          : undefined,
+      };
+
+      if (prev) {
+        Object.assign(prev, row);
+        await this.participantRepository.save(prev);
+      } else {
+        await this.participantRepository.save(
+          this.participantRepository.create(row),
+        );
+      }
+      added.push(userId);
+    }
+
+    if (added.length) {
+      await this.notificationsService.sendMatchInvitation(
+        convocation.id,
+        convocation.teamId,
+        this.buildMatchInvitationDetails(convocation),
+        added,
+      );
+    }
+
+    return {
+      event: await this.findOne(convocationId),
+      added,
+      skipped,
+    };
+  }
+
   async sendConvocation(convocationId: number): Promise<SportEvent> {
     const convocation = await this.findOne(convocationId);
 
@@ -306,19 +452,8 @@ export class ConvocationsService {
       convocation.id,
       convocation.teamId,
       {
-        date: convocation.eventDate.toISOString(),
-        opponent: convocation.opponentName || 'Por definir',
-        location: [
-          convocation.location,
-          convocation.courtNumber
-            ? `Cancha ${convocation.courtNumber}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        courtNumber: convocation.courtNumber,
+        ...this.buildMatchInvitationDetails(convocation),
         squadSummary,
-        isOfficial: convocation.isOfficialMatch,
       },
       convokedUserIds,
     );
