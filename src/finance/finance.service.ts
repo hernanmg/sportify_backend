@@ -7,6 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'crypto';
 import { Repository, In } from 'typeorm';
 import { FeeCharge } from './entities/fee-charge.entity';
 import { PlayerPayment } from './entities/player-payment.entity';
@@ -39,6 +40,8 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationPriority, NotificationType } from '../notifications/entities/notification.entity';
 import { GenerateMonthlyQuotaDto } from './dtos/generate-monthly-quota.dto';
+import { GenerateRecurringQuotaDto } from './dtos/generate-recurring-quota.dto';
+import { UpdateRecurringQuotaDto } from './dtos/update-recurring-quota.dto';
 import { OpenTrainingCollectionDto } from './dtos/open-training-collection.dto';
 import { CreateTrainingExpenseDto } from './dtos/create-training-expense.dto';
 import {
@@ -256,9 +259,11 @@ export class FinanceService {
     });
 
     let created = 0;
+    const seenUserIds = new Set<number>();
     for (const entry of roster) {
       const userId = entry.player?.user_id;
-      if (!userId) continue;
+      if (!userId || seenUserIds.has(userId)) continue;
+      seenUserIds.add(userId);
 
       for (const template of templates) {
         const alreadyExists = existingCharges.some(
@@ -313,14 +318,15 @@ export class FinanceService {
     });
 
     const charges: FeeCharge[] = [];
+    const seenUserIds = new Set<number>();
     for (const entry of roster) {
       const userId = entry.player?.user_id;
-      if (!userId) continue;
+      if (!userId || seenUserIds.has(userId)) continue;
+      seenUserIds.add(userId);
 
       const duplicate = existingCharges.find(
         (charge) =>
-          charge.userId === userId &&
-          this.toNumber(charge.amount) === this.toNumber(dto.amount),
+          charge.userId === userId && charge.concept === dto.concept,
       );
       if (duplicate) continue;
 
@@ -335,8 +341,11 @@ export class FinanceService {
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
         season: resolvedSeason,
         createdBy,
+        recurringGroupId: dto.recurringGroupId,
       });
-      charges.push(await this.feeChargeRepository.save(charge));
+      const saved = await this.feeChargeRepository.save(charge);
+      charges.push(saved);
+      existingCharges.push(saved);
     }
 
     if (charges.length > 0) {
@@ -896,6 +905,181 @@ export class FinanceService {
       createdBy,
       globalRole,
     );
+  }
+
+  async generateRecurringMonthlyQuota(
+    dto: GenerateRecurringQuotaDto,
+    createdBy?: number,
+    globalRole?: string,
+  ) {
+    const monthNames = [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
+    const groupId = randomUUID();
+    let year = dto.year;
+    let month = dto.month;
+    let totalCreated = 0;
+    const months: Array<{ year: number; month: number; concept: string }> = [];
+
+    for (let i = 0; i < dto.monthCount; i++) {
+      const concept = `Cuota ${monthNames[month - 1]} ${year}`;
+      const dueDate = new Date(year, month, 0);
+      const result = await this.generateFeeBatch(
+        {
+          teamId: dto.teamId,
+          concept,
+          amount: dto.amount,
+          dueDate: dueDate.toISOString().slice(0, 10),
+          season: dto.season,
+          type: FeeChargeType.MONTHLY_QUOTA,
+          recurringGroupId: groupId,
+        },
+        createdBy,
+        globalRole,
+      );
+      totalCreated += result.created;
+      months.push({ year, month, concept });
+      month += 1;
+      if (month > 12) {
+        month = 1;
+        year += 1;
+      }
+    }
+
+    return {
+      recurringGroupId: groupId,
+      monthCount: dto.monthCount,
+      amount: dto.amount,
+      months,
+      chargesCreated: totalCreated,
+    };
+  }
+
+  async listRecurringQuotaSeries(
+    teamId: number,
+    userId: number,
+    globalRole?: string,
+  ) {
+    await this.assertTeamMember(userId, teamId, globalRole);
+
+    const charges = await this.feeChargeRepository.find({
+      where: {
+        teamId,
+        type: FeeChargeType.MONTHLY_QUOTA,
+      },
+      order: { dueDate: 'ASC', id: 'ASC' },
+    });
+
+    const groups = new Map<
+      string,
+      {
+        recurringGroupId: string;
+        amount: number;
+        concepts: string[];
+        chargeCount: number;
+        pendingCount: number;
+        paidCount: number;
+        startDueDate?: string;
+        endDueDate?: string;
+      }
+    >();
+
+    for (const charge of charges) {
+      if (!charge.recurringGroupId) continue;
+      const key = charge.recurringGroupId;
+      const amount = this.toNumber(charge.amount);
+      const entry = groups.get(key) ?? {
+        recurringGroupId: key,
+        amount,
+        concepts: [],
+        chargeCount: 0,
+        pendingCount: 0,
+        paidCount: 0,
+        startDueDate: charge.dueDate
+          ? charge.dueDate.toISOString().slice(0, 10)
+          : undefined,
+        endDueDate: charge.dueDate
+          ? charge.dueDate.toISOString().slice(0, 10)
+          : undefined,
+      };
+
+      entry.chargeCount += 1;
+      if (!entry.concepts.includes(charge.concept)) {
+        entry.concepts.push(charge.concept);
+      }
+      if (
+        charge.status === FeeChargeStatus.PENDING ||
+        charge.status === FeeChargeStatus.PARTIAL
+      ) {
+        entry.pendingCount += 1;
+      } else if (charge.status === FeeChargeStatus.PAID) {
+        entry.paidCount += 1;
+      }
+      if (charge.dueDate) {
+        const due = charge.dueDate.toISOString().slice(0, 10);
+        if (!entry.startDueDate || due < entry.startDueDate) {
+          entry.startDueDate = due;
+        }
+        if (!entry.endDueDate || due > entry.endDueDate) {
+          entry.endDueDate = due;
+        }
+      }
+      groups.set(key, entry);
+    }
+
+    return [...groups.values()].sort((a, b) =>
+      (b.startDueDate ?? '').localeCompare(a.startDueDate ?? ''),
+    );
+  }
+
+  async updateRecurringQuotaSeries(
+    recurringGroupId: string,
+    dto: UpdateRecurringQuotaDto,
+    actorId: number,
+    globalRole?: string,
+  ) {
+    const charges = await this.feeChargeRepository.find({
+      where: { recurringGroupId },
+    });
+    if (!charges.length) {
+      throw new NotFoundException('Serie de cuotas no encontrada');
+    }
+
+    await this.teamsService.assertCanManageTeamFinance(
+      actorId,
+      charges[0].teamId,
+      globalRole,
+    );
+
+    let updated = 0;
+    for (const charge of charges) {
+      if (
+        charge.status !== FeeChargeStatus.PENDING ||
+        this.toNumber(charge.paidAmount) > 0
+      ) {
+        continue;
+      }
+      charge.amount = dto.amount;
+      await this.feeChargeRepository.save(charge);
+      updated += 1;
+    }
+
+    return {
+      recurringGroupId,
+      updatedCharges: updated,
+      amount: dto.amount,
+    };
   }
 
   async getQuotaOverview(

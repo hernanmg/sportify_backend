@@ -24,8 +24,11 @@ export class TeamReportsService {
     private readonly rosterService: RosterService,
   ) {}
 
-  async getSummary(teamId: number, season?: string) {
-    const roster = await this.rosterService.findByTeam(teamId, season);
+  async getSummary(teamId: number, season?: string, categoryId?: number) {
+    let roster = await this.rosterService.findByTeam(teamId, season);
+    if (categoryId) {
+      roster = roster.filter((r) => r.categoryId === categoryId);
+    }
     const userIds = [
       ...new Set(
         roster
@@ -37,12 +40,22 @@ export class TeamReportsService {
     const attendance = await this.buildAttendanceReport(teamId, userIds, roster);
     const debts = await this.financeService.getTeamPlayerBalances(teamId, season);
     const convocations = await this.buildConvocationReport(teamId);
+    const playerConvocations = await this.buildPlayerConvocationReport(
+      teamId,
+      userIds,
+      roster,
+    );
+
+    const filteredDebts = categoryId
+      ? debts.filter((d) => userIds.includes(d.userId))
+      : debts;
 
     return {
       teamId,
       season: season ?? null,
+      categoryId: categoryId ?? null,
       attendance,
-      debts: debts.map((d) => ({
+      debts: filteredDebts.map((d) => ({
         userId: d.userId,
         userName: d.userName,
         balance: d.balance,
@@ -50,7 +63,60 @@ export class TeamReportsService {
         totalPaid: d.totalPaid,
       })),
       convocations,
+      playerConvocations,
+      attendanceSessions: await this.buildAttendanceSessionsReport(
+        teamId,
+        userIds,
+      ),
     };
+  }
+
+  private async buildAttendanceSessionsReport(
+    teamId: number,
+    rosterUserIds: number[],
+  ) {
+    if (rosterUserIds.length === 0) return [];
+
+    const events = await this.sportEventRepository.find({
+      where: {
+        teamId,
+        type: In([SportEventType.TRAINING, SportEventType.MATCH]),
+        status: In([
+          SportEventStatus.COMPLETED,
+          SportEventStatus.CONFIRMED,
+          SportEventStatus.IN_PROGRESS,
+        ]),
+      },
+      relations: ['participants'],
+      order: { eventDate: 'DESC' },
+      take: 20,
+    });
+
+    return events.map((ev) => {
+      const parts = (ev.participants ?? []).filter((p) =>
+        rosterUserIds.includes(p.userId),
+      );
+      let present = 0;
+      let absent = 0;
+      let justified = 0;
+      for (const p of parts) {
+        if (p.attendanceStatus === 'present') present++;
+        else if (p.attendanceStatus === 'absent') absent++;
+        else if (p.attendanceStatus === 'justified') justified++;
+      }
+      const marked = present + absent + justified;
+      return {
+        eventId: ev.id,
+        title: ev.title,
+        type: ev.type,
+        eventDate: ev.eventDate.toISOString(),
+        present,
+        absent,
+        justified,
+        attendancePct:
+          marked > 0 ? Math.round((present / marked) * 100) : null,
+      };
+    });
   }
 
   private async buildAttendanceReport(
@@ -160,5 +226,71 @@ export class TeamReportsService {
             : 0,
       };
     });
+  }
+
+  private async buildPlayerConvocationReport(
+    teamId: number,
+    userIds: number[],
+    roster: Awaited<ReturnType<RosterService['findByTeam']>>,
+  ) {
+    if (userIds.length === 0) return [];
+
+    const participants = await this.participantRepository.find({
+      where: { userId: In(userIds) },
+      relations: ['event'],
+    });
+
+    const nameByUser = new Map<number, string>();
+    for (const r of roster) {
+      const uid = r.player?.user_id;
+      if (!uid) continue;
+      const name =
+        [r.player?.user?.firstName, r.player?.user?.lastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim() ||
+        r.player?.user?.email ||
+        `Jugador #${uid}`;
+      nameByUser.set(uid, name);
+    }
+
+    return userIds
+      .map((userId) => {
+        const matches = participants.filter(
+          (p) =>
+            p.userId === userId &&
+            p.event?.teamId === teamId &&
+            p.event?.type === SportEventType.MATCH &&
+            p.event?.status !== SportEventStatus.DRAFT,
+        );
+
+        let timesConvoked = 0;
+        let confirmed = 0;
+        let declined = 0;
+
+        for (const p of matches) {
+          if (p.isConvoked !== false) timesConvoked++;
+          if (p.status === ParticipantStatus.CONFIRMED) confirmed++;
+          if (p.status === ParticipantStatus.DECLINED) declined++;
+        }
+
+        const convoked = timesConvoked || 1;
+        const confirmationRate = Math.round((confirmed / convoked) * 100);
+        const responseRate = Math.round(
+          ((confirmed + declined) / convoked) * 100,
+        );
+
+        return {
+          userId,
+          userName: nameByUser.get(userId) ?? `Usuario ${userId}`,
+          timesConvoked,
+          confirmed,
+          declined,
+          confirmationRate,
+          responseRate,
+        };
+      })
+      .filter((row) => row.timesConvoked > 0)
+      .sort((a, b) => a.confirmationRate - b.confirmationRate);
   }
 }

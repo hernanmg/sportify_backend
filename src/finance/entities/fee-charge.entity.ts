@@ -68,6 +68,9 @@ export class FeeCharge {
   @Column({ name: 'sport_event_id', type: 'int', nullable: true })
   sportEventId?: number;
 
+  @Column({ name: 'recurring_group_id', type: 'varchar', length: 36, nullable: true })
+  recurringGroupId?: string;
+
   @ManyToOne(() => SportEvent, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'sport_event_id' })
   sportEvent?: SportEvent;

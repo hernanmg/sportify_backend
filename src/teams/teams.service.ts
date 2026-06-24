@@ -179,6 +179,25 @@ export class TeamsService {
     return !!member;
   }
 
+  /** Editar nombre, logo, colores y categorías del club. */
+  async assertCanManageTeamSettings(
+    userId: number,
+    teamId: number,
+    globalRole?: string,
+  ): Promise<void> {
+    if (this.isPlatformAdminRole(globalRole)) return;
+    if (await this.isTeamAdmin(userId, teamId)) return;
+    if (
+      globalRole === 'dt' &&
+      (await this.isTeamMember(userId, teamId))
+    ) {
+      return;
+    }
+    throw new ForbiddenException(
+      'Solo el DT o encargado del equipo puede editar los datos del club',
+    );
+  }
+
   /** Cuotas, pagos, gastos y caja del equipo. */
   async canManageTeamFinance(
     userId: number,
@@ -316,6 +335,60 @@ export class TeamsService {
     return this.teamMemberRepository.save(
       this.teamMemberRepository.create({ userId, teamId, role }),
     );
+  }
+
+  async listTeamMembers(teamId: number) {
+    const members = await this.teamMemberRepository.find({
+      where: { teamId },
+      relations: ['user'],
+      order: { role: 'ASC', joinedAt: 'ASC' },
+    });
+    return members.map((m) => ({
+      userId: m.userId,
+      teamId: m.teamId,
+      role: m.role,
+      userName:
+        [m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ').trim() ||
+        m.user?.email ||
+        `Usuario ${m.userId}`,
+      email: m.user?.email,
+      joinedAt: m.joinedAt?.toISOString?.() ?? null,
+    }));
+  }
+
+  async updateTeamMemberRole(
+    teamId: number,
+    targetUserId: number,
+    role: TeamMemberRole,
+    actorUserId: number,
+    actorRole?: string,
+  ): Promise<TeamMember> {
+    const elevated =
+      actorRole === 'super_admin' ||
+      actorRole === 'manager' ||
+      actorRole === 'admin';
+    const isAdmin = await this.isTeamAdmin(actorUserId, teamId);
+    const isDt =
+      actorRole === 'dt' &&
+      (await this.isTeamMember(actorUserId, teamId));
+    if (!elevated && !isAdmin && !isDt) {
+      throw new ForbiddenException(
+        'Solo el DT o admin del equipo puede cambiar roles',
+      );
+    }
+
+    let member = await this.teamMemberRepository.findOne({
+      where: { userId: targetUserId, teamId },
+    });
+    if (!member) {
+      member = await this.addTeamMember(
+        targetUserId,
+        teamId,
+        TeamMemberRole.PLAYER,
+      );
+    }
+    member.role = role;
+    return this.teamMemberRepository.save(member);
   }
 
   async ensureRosterEntries(
@@ -787,7 +860,12 @@ export class TeamsService {
       logo_url?: string;
       category_id?: number;
     },
+    actorUserId?: number,
+    actorRole?: string,
   ) {
+    if (actorUserId) {
+      await this.assertCanManageTeamSettings(actorUserId, id, actorRole);
+    }
     const normalized = this.normalizeTeamPayload(updateData);
     const { categoryIds, ...teamFields } = normalized;
     const team = await this.teamRepository.findOne({ where: { id } });

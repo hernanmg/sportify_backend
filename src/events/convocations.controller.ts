@@ -88,6 +88,15 @@ export class ConvocationsController {
     );
   }
 
+  @Get('suggested-starters')
+  @UseGuards(RolesGuard)
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
+  async suggestedStarters(@Query('teamId', ParseIntPipe) teamId: number) {
+    const userIds =
+      await this.convocationsService.getSuggestedStarters(teamId);
+    return { userIds };
+  }
+
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return await this.convocationsService.findOne(id);
@@ -175,6 +184,26 @@ export class ConvocationsController {
     await this.assertManage(req, conv.teamId);
     await this.convocationsService.resendConvocation(id);
     return { message: 'Convocatoria reenviada exitosamente' };
+  }
+
+  @Post(':id/remind-pending')
+  @UseGuards(RolesGuard)
+  @Roles('super_admin', 'manager', 'admin', 'team_captain', 'dt')
+  @HttpCode(HttpStatus.OK)
+  async remindPending(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    const conv = await this.convocationsService.findOne(id);
+    await this.assertManage(req, conv.teamId);
+    const result = await this.convocationsService.remindPendingConvocation(id);
+    return {
+      message:
+        result.reminded > 0
+          ? `Recordatorio enviado a ${result.reminded} jugador(es)`
+          : 'No hay jugadores pendientes de confirmar',
+      reminded: result.reminded,
+    };
   }
 
   @Post(':id/participants/:userId/fee-override')

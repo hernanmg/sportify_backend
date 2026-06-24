@@ -59,6 +59,7 @@ export class TeamDashboardService {
         userName: b.userName,
         balance: b.balance,
         jerseyNumber: b.jerseyNumber,
+        mayBlockOfficialMatch: true,
       }));
 
     const upcoming = await this.sportEventRepository.find({
@@ -173,12 +174,60 @@ export class TeamDashboardService {
 
     const summary = await this.financeService.getTeamSummary(teamId);
 
+    const nextConvocation = await this.sportEventRepository.findOne({
+      where: {
+        teamId,
+        type: SportEventType.MATCH,
+        status: In([
+          SportEventStatus.SCHEDULED,
+          SportEventStatus.CONFIRMED,
+          SportEventStatus.IN_PROGRESS,
+        ]),
+        eventDate: MoreThan(now),
+      },
+      relations: ['participants', 'participants.user'],
+      order: { eventDate: 'ASC' },
+    });
+
+    let nextConvocationSummary: {
+      id: number;
+      title: string;
+      opponentName?: string;
+      eventDate: string;
+      convoked: number;
+      confirmed: number;
+      pending: number;
+      declined: number;
+    } | null = null;
+
+    if (nextConvocation) {
+      const convoked = (nextConvocation.participants ?? []).filter(
+        (p) => p.isConvoked,
+      );
+      nextConvocationSummary = {
+        id: nextConvocation.id,
+        title: nextConvocation.title,
+        opponentName: nextConvocation.opponentName,
+        eventDate: nextConvocation.eventDate.toISOString(),
+        convoked: convoked.length,
+        confirmed: convoked.filter(
+          (p) => p.status === ParticipantStatus.CONFIRMED,
+        ).length,
+        pending: convoked.filter((p) => p.status === ParticipantStatus.PENDING)
+          .length,
+        declined: convoked.filter(
+          (p) => p.status === ParticipantStatus.DECLINED,
+        ).length,
+      };
+    }
+
     return {
       teamId,
       generatedAt: now.toISOString(),
       debtors,
       debtorsCount: debtors.length,
       pendingConfirmations,
+      nextConvocation: nextConvocationSummary,
       lastSessionAttendance,
       monthFinance: {
         income: monthIncome,

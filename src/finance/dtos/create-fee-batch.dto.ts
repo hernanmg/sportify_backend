@@ -35,4 +35,9 @@ export class CreateFeeBatchDto {
   @IsOptional()
   @IsEnum(FeeChargeType)
   type?: FeeChargeType;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(36)
+  recurringGroupId?: string;
 }

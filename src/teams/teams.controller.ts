@@ -26,6 +26,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TeamSocialGuest } from '../events/entities/team-social-guest.entity';
+import { TeamMemberRole } from './entities/team-member.entity';
 
 @Controller('teams')
 export class TeamsController {
@@ -184,8 +185,39 @@ export class TeamsController {
   getReports(
     @Param('teamId', ParseIntPipe) teamId: number,
     @Query('season') season?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
-    return this.teamReportsService.getSummary(teamId, season);
+    const parsedCategoryId = categoryId
+      ? parseInt(categoryId, 10)
+      : undefined;
+    return this.teamReportsService.getSummary(
+      teamId,
+      season,
+      Number.isNaN(parsedCategoryId) ? undefined : parsedCategoryId,
+    );
+  }
+
+  @Get(':teamId/members')
+  @UseGuards(AuthGuard('jwt'))
+  listMembers(@Param('teamId', ParseIntPipe) teamId: number) {
+    return this.teamsService.listTeamMembers(teamId);
+  }
+
+  @Patch(':teamId/members/:userId/role')
+  @UseGuards(AuthGuard('jwt'))
+  updateMemberRole(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Body() body: { role: TeamMemberRole },
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    return this.teamsService.updateTeamMemberRole(
+      teamId,
+      userId,
+      body.role,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Get(':teamId/sponsors')
@@ -294,8 +326,17 @@ export class TeamsController {
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'))
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateData: any) {
-    return this.teamsService.update(id, updateData);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateData: any,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    return this.teamsService.update(
+      id,
+      updateData,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Patch(':id/categories')
@@ -303,8 +344,14 @@ export class TeamsController {
   setCategories(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { categoryIds: number[] },
+    @Request() req: { user: { id: number; role?: string } },
   ) {
-    return this.teamsService.update(id, { categoryIds: body.categoryIds ?? [] });
+    return this.teamsService.update(
+      id,
+      { categoryIds: body.categoryIds ?? [] },
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Delete(':id')

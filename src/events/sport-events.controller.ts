@@ -15,7 +15,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { SportEventsService } from './sport-events.service';
+import { TrainingSchedulesService } from './training-schedules.service';
 import { CreateSportEventDto, UpdateSportEventDto, AddParticipantDto, UpdateParticipantResponseDto } from './dtos/create-sport-event.dto';
+import { CreateTrainingScheduleDto } from './dtos/create-training-schedule.dto';
 import { AddSocialGuestDto } from './dtos/add-social-guest.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -25,7 +27,10 @@ import { SportEventType, SportEventStatus } from './entities/sport-event.entity'
 @Controller('sport-events')
 @UseGuards(AuthGuard('jwt'))
 export class SportEventsController {
-  constructor(private readonly sportEventsService: SportEventsService) {}
+  constructor(
+    private readonly sportEventsService: SportEventsService,
+    private readonly trainingSchedulesService: TrainingSchedulesService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -75,6 +80,26 @@ export class SportEventsController {
       teamId,
       new Date(startDate),
       new Date(endDate)
+    );
+  }
+
+  @Get('training-schedules')
+  listTrainingSchedules(@Query('teamId', ParseIntPipe) teamId: number) {
+    return this.trainingSchedulesService.listByTeam(teamId);
+  }
+
+  @Post('training-schedules')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(RolesGuard)
+  @Roles('super_admin', 'manager', 'admin', 'dt', 'team_captain')
+  createTrainingSchedule(
+    @Body() dto: CreateTrainingScheduleDto,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    return this.trainingSchedulesService.create(
+      dto,
+      req.user.id,
+      req.user.role,
     );
   }
 

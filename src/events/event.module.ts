@@ -41,6 +41,8 @@ import { PostMatchService } from './post-match.service';
 import { PostMatchController } from './post-match.controller';
 import { AttendanceService } from './attendance.service';
 import { AttendanceController } from './attendance.controller';
+import { TrainingSchedule } from './entities/training-schedule.entity';
+import { TrainingSchedulesService } from './training-schedules.service';
 
 @Module({
   imports: [
@@ -63,6 +65,7 @@ import { AttendanceController } from './attendance.controller';
       EventExpenseSheet,
       EventExpenseItem,
       EventExpenseShare,
+      TrainingSchedule,
     ]),
     MatchesModule,
     forwardRef(() => NotificationsModule),
@@ -91,7 +94,8 @@ import { AttendanceController } from './attendance.controller';
     EventStateService,
     PostMatchService,
     AttendanceService,
+    TrainingSchedulesService,
   ],
-  exports: [EventsService, SportEventsService, ConvocationsService, EventStateService, PostMatchService],
+  exports: [EventsService, SportEventsService, ConvocationsService, EventStateService, PostMatchService, TrainingSchedulesService],
 })
 export class EventsModule {}

@@ -29,6 +29,8 @@ import { RejectPaymentDto } from './dtos/reject-payment.dto';
 import { FeeChargeStatus, PaymentMethod } from './finance.enums';
 import { ReceiptUploadFile } from './payment-receipt.storage';
 import { GenerateMonthlyQuotaDto } from './dtos/generate-monthly-quota.dto';
+import { GenerateRecurringQuotaDto } from './dtos/generate-recurring-quota.dto';
+import { UpdateRecurringQuotaDto } from './dtos/update-recurring-quota.dto';
 import { OpenTrainingCollectionDto } from './dtos/open-training-collection.dto';
 import { CreateTrainingExpenseDto } from './dtos/create-training-expense.dto';
 
@@ -271,6 +273,50 @@ export class FinanceController {
     );
   }
 
+  @Post('fees/monthly-quota/recurring')
+  @UseGuards(RolesGuard)
+  @Roles(...FINANCE_MANAGER_ROLES)
+  generateRecurringMonthlyQuota(
+    @Body() dto: GenerateRecurringQuotaDto,
+    @Req() req: { user: { id: number; role?: string } },
+  ) {
+    return this.financeService.generateRecurringMonthlyQuota(
+      dto,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Get('team/:teamId/quota-series')
+  @UseGuards(RolesGuard)
+  @Roles(...FINANCE_MANAGER_ROLES)
+  listQuotaSeries(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Req() req: { user: { id: number; role?: string } },
+  ) {
+    return this.financeService.listRecurringQuotaSeries(
+      teamId,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Patch('fees/quota-series/:groupId')
+  @UseGuards(RolesGuard)
+  @Roles(...FINANCE_MANAGER_ROLES)
+  updateQuotaSeries(
+    @Param('groupId') groupId: string,
+    @Body() dto: UpdateRecurringQuotaDto,
+    @Req() req: { user: { id: number; role?: string } },
+  ) {
+    return this.financeService.updateRecurringQuotaSeries(
+      groupId,
+      dto,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
   @Get('team/:teamId/quota-overview')
   getQuotaOverview(
     @Param('teamId', ParseIntPipe) teamId: number,
@@ -317,7 +363,7 @@ export class FinanceController {
 
   @Post('sport-events/:eventId/training-collection')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles(...FINANCE_MANAGER_ROLES)
   openTrainingCollection(
     @Param('eventId', ParseIntPipe) eventId: number,
     @Body() dto: OpenTrainingCollectionDto,
@@ -345,7 +391,7 @@ export class FinanceController {
 
   @Post('training-expenses')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager', 'admin', 'team_captain')
+  @Roles(...FINANCE_MANAGER_ROLES)
   createTrainingExpense(
     @Body() dto: CreateTrainingExpenseDto,
     @Req() req: { user: { id: number } },

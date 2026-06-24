@@ -510,11 +510,31 @@ export class ConvocationsService {
   }
 
   async resendConvocation(convocationId: number): Promise<void> {
+    await this.remindPendingConvocation(convocationId, false);
+  }
+
+  async remindPendingConvocation(
+    convocationId: number,
+    pendingOnly = true,
+  ): Promise<{ reminded: number }> {
     const convocation = await this.findOne(convocationId);
     const participants = convocation.participants ?? [];
-    const convokedUserIds = participants
+    let targetUserIds = participants
       .filter((p) => p.isConvoked)
       .map((p) => p.userId);
+
+    if (pendingOnly) {
+      targetUserIds = participants
+        .filter(
+          (p) =>
+            p.isConvoked && p.status === ParticipantStatus.PENDING,
+        )
+        .map((p) => p.userId);
+    }
+
+    if (targetUserIds.length === 0) {
+      return { reminded: 0 };
+    }
 
     await this.notificationsService.sendMatchInvitation(
       convocation.id,
@@ -524,9 +544,29 @@ export class ConvocationsService {
         opponent: convocation.opponentName || 'Por definir',
         location: convocation.location || 'Por definir',
         courtNumber: convocation.courtNumber,
+        isOfficial: convocation.isOfficialMatch,
       },
-      convokedUserIds,
+      targetUserIds,
     );
+
+    return { reminded: targetUserIds.length };
+  }
+
+  async getSuggestedStarters(teamId: number): Promise<number[]> {
+    const lastMatch = await this.sportEventRepository.findOne({
+      where: {
+        teamId,
+        type: SportEventType.MATCH,
+        status: SportEventStatus.COMPLETED,
+      },
+      relations: ['participants'],
+      order: { eventDate: 'DESC' },
+    });
+    if (!lastMatch) return [];
+
+    return (lastMatch.participants ?? [])
+      .filter((p) => p.isConvoked && p.isStarter === true)
+      .map((p) => p.userId);
   }
 
   async updateConvocation(

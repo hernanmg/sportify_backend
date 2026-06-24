@@ -43,6 +43,9 @@ const MIGRATION_FILES = [
   'src/database/migrations/025-permissions-name-column.sql',
   'src/database/migrations/026-short-category-labels.sql',
   'src/database/migrations/027-sports-roles-name-column.sql',
+  'src/database/migrations/028-fee-charges-recurring-group.sql',
+  'src/database/migrations/029-training-schedules.sql',
+  'src/database/migrations/030-fee-charges-dedupe-unique.sql',
 ];
 
 const AUX_FILES = ['src/database/render/01-inserts-aux.sql'];
