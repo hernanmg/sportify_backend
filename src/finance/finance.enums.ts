@@ -5,6 +5,7 @@ export enum FeeChargeType {
 }
 
 export enum FeeChargeStatus {
+  SCHEDULED = 'scheduled',
   PENDING = 'pending',
   PARTIAL = 'partial',
   PAID = 'paid',
