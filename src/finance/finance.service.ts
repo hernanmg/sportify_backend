@@ -898,6 +898,7 @@ export class FinanceService {
     season?: string,
     viewerId?: number,
     globalRole?: string,
+    categoryId?: number,
   ) {
     if (viewerId) {
       await this.teamsService.assertCanManageTeamFinance(
@@ -909,7 +910,10 @@ export class FinanceService {
     await this.syncMissingFeeCharges(teamId, season);
     await this.promoteScheduledCharges(teamId);
 
-    const { roster } = await this.findRosterForFinance(teamId, season);
+    let { roster } = await this.findRosterForFinance(teamId, season);
+    if (categoryId != null) {
+      roster = roster.filter((entry) => entry.categoryId === categoryId);
+    }
     const charges = await this.feeChargeRepository.find({
       where: { teamId },
       relations: ['user'],
@@ -947,10 +951,12 @@ export class FinanceService {
     }> = [];
 
     const rosterUserIds = new Set<number>();
+    const processedUserIds = new Set<number>();
 
     for (const entry of roster) {
       const userId = entry.player?.user_id;
-      if (!userId) continue;
+      if (!userId || processedUserIds.has(userId)) continue;
+      processedUserIds.add(userId);
       rosterUserIds.add(userId);
 
       const totals = totalsByUser.get(userId) ?? {

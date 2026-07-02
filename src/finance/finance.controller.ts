@@ -68,13 +68,19 @@ export class FinanceController {
   getTeamPlayerBalances(
     @Param('teamId', ParseIntPipe) teamId: number,
     @Query('season') season?: string,
+    @Query('categoryId') categoryId?: string,
     @Req() req?: { user: { id: number; role?: string } },
   ) {
+    const parsedCategoryId =
+      categoryId != null && categoryId !== ''
+        ? parseInt(categoryId, 10)
+        : undefined;
     return this.financeService.getTeamPlayerBalances(
       teamId,
       season,
       req!.user.id,
       req!.user.role,
+      Number.isFinite(parsedCategoryId) ? parsedCategoryId : undefined,
     );
   }
 

@@ -502,11 +502,27 @@ export class ConvocationsService {
   async getConvocationResponses(
     convocationId: number,
   ): Promise<EventParticipant[]> {
-    return await this.participantRepository.find({
+    const convocation = await this.findOne(convocationId);
+    const participants = await this.participantRepository.find({
       where: { eventId: convocationId, isConvoked: true },
       relations: ['user'],
       order: { status: 'ASC', createdAt: 'ASC' },
     });
+
+    const fresh = await this.eligibilityService.getTeamEligibility(
+      convocation.teamId,
+    );
+    const byUser = new Map(fresh.map((e) => [e.userId, e]));
+
+    for (const p of participants) {
+      const entry = byUser.get(p.userId);
+      if (entry) {
+        p.eligibilityStatus = entry.status;
+        p.eligibilityDetail = entry.reason;
+      }
+    }
+
+    return participants;
   }
 
   async resendConvocation(convocationId: number): Promise<void> {
