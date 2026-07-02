@@ -820,12 +820,44 @@ export class FinanceService {
 
     const payments = await this.paymentRepository.find({
       where: paymentWhere,
+      relations: ['user', 'allocations', 'allocations.feeCharge'],
       order: { createdAt: 'DESC' },
     });
 
     const pendingPayments = payments.filter(
       (p) => p.status === PaymentStatus.PENDING_CONFIRMATION,
     );
+
+    const paymentHistory = payments
+      .filter((p) => p.status !== PaymentStatus.PENDING_CONFIRMATION)
+      .map((p) => this.mapPaymentResponse(p));
+
+    const paidChargeHistory = charges
+      .filter(
+        (c) =>
+          this.toNumber(c.paidAmount) > 0 &&
+          !this.isFutureMonthlyQuota(c) &&
+          !payments.some((p) =>
+            (p.allocations ?? []).some((a) => a.feeChargeId === c.id),
+          ),
+      )
+      .map((c) => ({
+        id: -c.id,
+        teamId: c.teamId,
+        userId: c.userId,
+        amount: this.toNumber(c.paidAmount),
+        method: 'transfer',
+        status: PaymentStatus.CONFIRMED,
+        notes: `Abono aplicado a: ${c.concept}`,
+        receiptPath: null,
+        receiptMimeType: null,
+        hasReceipt: false,
+        createdAt: c.updatedAt ?? c.createdAt,
+        confirmedAt: c.updatedAt ?? c.createdAt,
+        rejectionReason: null,
+        user: undefined,
+        userName: undefined,
+      }));
 
     const totalCharged = charges.reduce(
       (sum, c) =>
@@ -854,7 +886,11 @@ export class FinanceService {
       scheduledCharges: charges.filter((c) => this.isFutureMonthlyQuota(c)),
       pendingPayments: pendingPayments.map((p) => this.mapPaymentResponse(p)),
       charges,
-      payments: payments.map((p) => this.mapPaymentResponse(p)),
+      payments: [...paymentHistory, ...paidChargeHistory].sort(
+        (a, b) =>
+          new Date(b.createdAt ?? 0).getTime() -
+          new Date(a.createdAt ?? 0).getTime(),
+      ),
     };
   }
 
@@ -1230,90 +1266,92 @@ export class FinanceService {
     userId: number,
     globalRole?: string,
     conceptPrefix?: string,
+    season?: string,
+    categoryId?: number,
   ) {
     await this.assertTeamMember(userId, teamId, globalRole);
     await this.promoteScheduledCharges(teamId);
 
-    const charges = await this.feeChargeRepository.find({
-      where: { teamId, type: FeeChargeType.MONTHLY_QUOTA },
-      relations: ['user'],
-      order: { createdAt: 'DESC' },
-    });
-
-    let filtered = charges;
-    if (conceptPrefix) {
-      filtered = charges.filter((c) =>
-        c.concept.toLowerCase().includes(conceptPrefix.toLowerCase()),
-      );
-    } else {
-      const latestConcept = charges[0]?.concept;
-      if (latestConcept) {
-        filtered = charges.filter((c) => c.concept === latestConcept);
-      }
-    }
-
-    const byUser = new Map<
-      number,
-      {
-        userId: number;
-        userName: string;
-        totalCharged: number;
-        totalPaid: number;
-        balance: number;
-        status: FeeChargeStatus;
-      }
-    >();
-
-    for (const c of filtered) {
-      if (this.isFutureMonthlyQuota(c)) continue;
-      const name = c.user
-        ? [c.user.firstName, c.user.lastName].filter(Boolean).join(' ').trim() ||
-          c.user.username
-        : `Usuario ${c.userId}`;
-      const existing = byUser.get(c.userId);
-      const amount = this.toNumber(c.amount);
-      const paid = this.toNumber(c.paidAmount);
-      if (existing) {
-        existing.totalCharged += amount;
-        existing.totalPaid += paid;
-        existing.balance = existing.totalCharged - existing.totalPaid;
-        if (existing.balance > 0.01) {
-          existing.status =
-            existing.totalPaid > 0
-              ? FeeChargeStatus.PARTIAL
-              : FeeChargeStatus.PENDING;
-        } else {
-          existing.status = FeeChargeStatus.PAID;
-        }
-      } else {
-        byUser.set(c.userId, {
-          userId: c.userId,
-          userName: name ?? `Usuario ${c.userId}`,
-          totalCharged: amount,
-          totalPaid: paid,
-          balance: amount - paid,
-          status: c.status,
-        });
-      }
-    }
-
-    const players = Array.from(byUser.values()).sort(
-      (a, b) => b.balance - a.balance,
+    const balances = await this.getTeamPlayerBalances(
+      teamId,
+      season,
+      undefined,
+      globalRole,
+      categoryId,
     );
+
+    let players = balances.map((b) => ({
+      userId: b.userId,
+      userName: b.userName,
+      totalCharged: b.totalCharged,
+      totalPaid: b.totalPaid,
+      balance: b.balance,
+      status:
+        b.balance <= 0.01
+          ? FeeChargeStatus.PAID
+          : b.totalPaid > 0
+            ? FeeChargeStatus.PARTIAL
+            : FeeChargeStatus.PENDING,
+    }));
+
+    if (conceptPrefix?.trim()) {
+      const prefix = conceptPrefix.trim().toLowerCase();
+      const charges = await this.feeChargeRepository.find({
+        where: { teamId, type: FeeChargeType.MONTHLY_QUOTA },
+      });
+      const userIdsForConcept = new Set(
+        charges
+          .filter(
+            (c) =>
+              c.concept.toLowerCase().includes(prefix) &&
+              !this.isFutureMonthlyQuota(c),
+          )
+          .map((c) => c.userId),
+      );
+      players = players.filter(
+        (p) => p.balance > 0.01 || userIdsForConcept.has(p.userId),
+      );
+    }
+
+    players.sort((a, b) => b.balance - a.balance);
 
     const totalCharged = players.reduce((s, p) => s + p.totalCharged, 0);
     const totalPaid = players.reduce((s, p) => s + p.totalPaid, 0);
 
-    const scheduledCount = filtered.filter((c) =>
-      this.isFutureMonthlyQuota(c),
-    ).length;
+    const scheduledCount = await this.feeChargeRepository.count({
+      where: {
+        teamId,
+        type: FeeChargeType.MONTHLY_QUOTA,
+        status: FeeChargeStatus.SCHEDULED,
+      },
+    });
+
+    const monthNames = [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
+    const now = new Date();
+    const defaultConcept = `Cuota ${monthNames[now.getMonth()]} ${now.getFullYear()}`;
 
     return {
       teamId,
-      concept: filtered[0]?.concept ?? null,
+      concept: conceptPrefix?.trim() || defaultConcept,
       totalCharged,
       totalPaid,
-      totalOutstanding: Math.max(0, totalCharged - totalPaid),
+      totalOutstanding: Math.max(
+        0,
+        players.reduce((s, p) => s + p.balance, 0),
+      ),
       playersCount: players.length,
       paidCount: players.filter((p) => p.balance <= 0.01).length,
       pendingCount: players.filter((p) => p.balance > 0.01).length,

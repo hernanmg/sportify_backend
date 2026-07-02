@@ -326,14 +326,22 @@ export class FinanceController {
   @Get('team/:teamId/quota-overview')
   getQuotaOverview(
     @Param('teamId', ParseIntPipe) teamId: number,
-    @Query('concept') concept: string | undefined,
     @Req() req: { user: { id: number; role?: string } },
+    @Query('concept') concept?: string,
+    @Query('season') season?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
+    const parsedCategoryId =
+      categoryId != null && categoryId !== ''
+        ? parseInt(categoryId, 10)
+        : undefined;
     return this.financeService.getQuotaOverview(
       teamId,
       req.user.id,
       req.user.role,
       concept,
+      season,
+      Number.isFinite(parsedCategoryId) ? parsedCategoryId : undefined,
     );
   }
 
