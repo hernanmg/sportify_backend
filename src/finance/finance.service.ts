@@ -1261,6 +1261,147 @@ export class FinanceService {
     };
   }
 
+  async updateFeeCharge(
+    chargeId: number,
+    dto: {
+      amount?: number;
+      concept?: string;
+      dueDate?: string;
+      status?: FeeChargeStatus;
+    },
+    actorId: number,
+    globalRole?: string,
+  ) {
+    const charge = await this.feeChargeRepository.findOne({
+      where: { id: chargeId },
+    });
+    if (!charge) {
+      throw new NotFoundException(`Cuota #${chargeId} no encontrada`);
+    }
+    await this.teamsService.assertCanManageTeamFinance(
+      actorId,
+      charge.teamId,
+      globalRole,
+    );
+
+    const paid = this.toNumber(charge.paidAmount);
+    if (dto.amount != null) {
+      if (paid > 0.01 && dto.amount + 0.001 < paid) {
+        throw new BadRequestException(
+          'El monto no puede ser menor a lo ya pagado',
+        );
+      }
+      charge.amount = dto.amount;
+      if (charge.status !== FeeChargeStatus.SCHEDULED) {
+        charge.status = this.resolveChargeStatus(
+          this.toNumber(charge.amount),
+          paid,
+        );
+      }
+    }
+    if (dto.concept != null && dto.concept.trim()) {
+      charge.concept = dto.concept.trim();
+    }
+    if (dto.dueDate != null) {
+      charge.dueDate = new Date(dto.dueDate);
+      if (
+        charge.type === FeeChargeType.MONTHLY_QUOTA &&
+        paid <= 0.01 &&
+        charge.status !== FeeChargeStatus.PAID &&
+        charge.status !== FeeChargeStatus.WAIVED
+      ) {
+        charge.status = this.initialMonthlyQuotaStatus(
+          charge.type,
+          charge.dueDate,
+          charge.concept,
+        );
+      }
+    }
+    if (dto.status != null) {
+      if (
+        dto.status === FeeChargeStatus.WAIVED ||
+        dto.status === FeeChargeStatus.PENDING ||
+        dto.status === FeeChargeStatus.SCHEDULED
+      ) {
+        charge.status = dto.status;
+      } else {
+        throw new BadRequestException(
+          'Estado no permitido. Usá pending, scheduled o waived.',
+        );
+      }
+    }
+
+    return this.feeChargeRepository.save(charge);
+  }
+
+  async deleteFeeCharge(
+    chargeId: number,
+    actorId: number,
+    globalRole?: string,
+  ) {
+    const charge = await this.feeChargeRepository.findOne({
+      where: { id: chargeId },
+    });
+    if (!charge) {
+      throw new NotFoundException(`Cuota #${chargeId} no encontrada`);
+    }
+    await this.teamsService.assertCanManageTeamFinance(
+      actorId,
+      charge.teamId,
+      globalRole,
+    );
+
+    if (this.toNumber(charge.paidAmount) > 0.01) {
+      throw new BadRequestException(
+        'No se puede eliminar una cuota con pagos aplicados. Anulá primero o dejala en waived.',
+      );
+    }
+
+    await this.allocationRepository.delete({ feeChargeId: chargeId });
+    await this.feeChargeRepository.delete(chargeId);
+    return { deleted: true, id: chargeId };
+  }
+
+  async deleteRecurringQuotaSeries(
+    recurringGroupId: string,
+    actorId: number,
+    globalRole?: string,
+  ) {
+    const charges = await this.feeChargeRepository.find({
+      where: { recurringGroupId },
+    });
+    if (!charges.length) {
+      throw new NotFoundException('Serie de cuotas no encontrada');
+    }
+    await this.teamsService.assertCanManageTeamFinance(
+      actorId,
+      charges[0].teamId,
+      globalRole,
+    );
+
+    let deleted = 0;
+    let skippedPaid = 0;
+    for (const charge of charges) {
+      if (this.toNumber(charge.paidAmount) > 0.01) {
+        skippedPaid += 1;
+        continue;
+      }
+      await this.allocationRepository.delete({ feeChargeId: charge.id });
+      await this.feeChargeRepository.delete(charge.id);
+      deleted += 1;
+    }
+
+    return {
+      recurringGroupId,
+      deleted,
+      skippedPaid,
+      message:
+        skippedPaid > 0
+          ? `Se eliminaron ${deleted} cuotas. ${skippedPaid} con pagos se conservaron.`
+          : `Se eliminaron ${deleted} cuotas.`,
+    };
+  }
+
   async getQuotaOverview(
     teamId: number,
     userId: number,

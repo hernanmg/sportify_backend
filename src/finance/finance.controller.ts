@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -31,6 +32,7 @@ import { ReceiptUploadFile } from './payment-receipt.storage';
 import { GenerateMonthlyQuotaDto } from './dtos/generate-monthly-quota.dto';
 import { GenerateRecurringQuotaDto } from './dtos/generate-recurring-quota.dto';
 import { UpdateRecurringQuotaDto } from './dtos/update-recurring-quota.dto';
+import { UpdateFeeChargeDto } from './dtos/update-fee-charge.dto';
 import { OpenTrainingCollectionDto } from './dtos/open-training-collection.dto';
 import { CreateTrainingExpenseDto } from './dtos/create-training-expense.dto';
 
@@ -318,6 +320,50 @@ export class FinanceController {
     return this.financeService.updateRecurringQuotaSeries(
       groupId,
       dto,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Delete('fees/quota-series/:groupId')
+  @UseGuards(RolesGuard)
+  @Roles(...FINANCE_MANAGER_ROLES)
+  deleteQuotaSeries(
+    @Param('groupId') groupId: string,
+    @Req() req: { user: { id: number; role?: string } },
+  ) {
+    return this.financeService.deleteRecurringQuotaSeries(
+      groupId,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Patch('fees/:id')
+  @UseGuards(RolesGuard)
+  @Roles(...FINANCE_MANAGER_ROLES)
+  updateFeeCharge(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateFeeChargeDto,
+    @Req() req: { user: { id: number; role?: string } },
+  ) {
+    return this.financeService.updateFeeCharge(
+      id,
+      dto,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Delete('fees/:id')
+  @UseGuards(RolesGuard)
+  @Roles(...FINANCE_MANAGER_ROLES)
+  deleteFeeCharge(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: { user: { id: number; role?: string } },
+  ) {
+    return this.financeService.deleteFeeCharge(
+      id,
       req.user.id,
       req.user.role,
     );

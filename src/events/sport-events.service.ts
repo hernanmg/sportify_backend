@@ -53,7 +53,9 @@ export class SportEventsService {
   ) {}
 
   private isPlatformElevated(role?: string): boolean {
-    return role === 'super_admin' || role === 'manager';
+    return (
+      role === 'super_admin' || role === 'manager' || role === 'admin'
+    );
   }
 
   private async assertCanCreateForTeam(
@@ -68,6 +70,23 @@ export class SportEventsService {
         'Solo los miembros del equipo pueden crear eventos para ese club',
       );
     }
+  }
+
+  /** Admin / DT / capitán: editar o eliminar cualquier evento del equipo. */
+  private async assertCanManageEvent(
+    userId: number,
+    teamId: number,
+    role?: string,
+  ): Promise<void> {
+    if (this.isPlatformElevated(role)) return;
+    const staffRoles = ['dt', 'team_captain'];
+    if (role && staffRoles.includes(role)) {
+      const isMember = await this.teamsService.isTeamMember(userId, teamId);
+      if (isMember) return;
+    }
+    throw new ForbiddenException(
+      'No tenés permisos para editar o eliminar eventos de este equipo',
+    );
   }
 
   async create(
@@ -165,22 +184,30 @@ export class SportEventsService {
     return event;
   }
 
-  async update(id: number, updateSportEventDto: UpdateSportEventDto, changedBy?: number): Promise<SportEvent> {
+  async update(
+    id: number,
+    updateSportEventDto: UpdateSportEventDto,
+    changedBy?: number,
+    actorRole?: string,
+  ): Promise<SportEvent> {
     const event = await this.findOne(id);
+    if (changedBy) {
+      await this.assertCanManageEvent(changedBy, event.teamId, actorRole);
+    }
     const oldStatus = event.status;
 
-    // Actualizar campos
     Object.assign(event, {
       ...updateSportEventDto,
-      eventDate: updateSportEventDto.eventDate ? new Date(updateSportEventDto.eventDate) : event.eventDate,
-      confirmationDeadline: updateSportEventDto.confirmationDeadline 
-        ? new Date(updateSportEventDto.confirmationDeadline) 
+      eventDate: updateSportEventDto.eventDate
+        ? new Date(updateSportEventDto.eventDate)
+        : event.eventDate,
+      confirmationDeadline: updateSportEventDto.confirmationDeadline
+        ? new Date(updateSportEventDto.confirmationDeadline)
         : event.confirmationDeadline,
     });
 
     await this.sportEventRepository.save(event);
-    
-    // Verificar si cambió el estado y notificar
+
     if (updateSportEventDto.status && oldStatus !== updateSportEventDto.status) {
       const participants = await this.participantRepository.find({
         where: { eventId: id },
@@ -202,10 +229,18 @@ export class SportEventsService {
     return await this.findOne(id);
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(
+    id: number,
+    actorId?: number,
+    actorRole?: string,
+  ): Promise<void> {
     const event = await this.findOne(id);
+    if (actorId) {
+      await this.assertCanManageEvent(actorId, event.teamId, actorRole);
+    }
+    // delete() respeta ON DELETE CASCADE en DB (stats, ratings, gastos, etc.)
     await this.participantRepository.delete({ eventId: id });
-    await this.sportEventRepository.remove(event);
+    await this.sportEventRepository.delete(id);
   }
 
   // GESTIÓN DE PARTICIPANTES

@@ -110,22 +110,30 @@ export class SportEventsController {
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles('super_admin', 'manager')
+  @Roles('super_admin', 'manager', 'admin', 'dt', 'team_captain')
   @HttpCode(HttpStatus.OK)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateSportEventDto: UpdateSportEventDto,
-    @Request() req,
+    @Request() req: { user: { id: number; role?: string } },
   ) {
-    return await this.sportEventsService.update(id, updateSportEventDto, req.user.id);
+    return await this.sportEventsService.update(
+      id,
+      updateSportEventDto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles('super_admin', 'manager', 'admin', 'dt', 'team_captain')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    await this.sportEventsService.remove(id);
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    await this.sportEventsService.remove(id, req.user.id, req.user.role);
   }
 
   // ENDPOINTS PARA PARTICIPANTES
