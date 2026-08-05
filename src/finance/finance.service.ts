@@ -13,6 +13,7 @@ import { FeeCharge } from './entities/fee-charge.entity';
 import { PlayerPayment } from './entities/player-payment.entity';
 import { PaymentAllocation } from './entities/payment-allocation.entity';
 import { LedgerEntry } from './entities/ledger-entry.entity';
+import { CashClosure } from './entities/cash-closure.entity';
 import {
   FeeChargeStatus,
   FeeChargeType,
@@ -26,6 +27,7 @@ import { RegisterPaymentDto } from './dtos/register-payment.dto';
 import { CreateTeamExpenseDto } from './dtos/create-team-expense.dto';
 import { SubmitPaymentDto } from './dtos/submit-payment.dto';
 import { RejectPaymentDto } from './dtos/reject-payment.dto';
+import { CashCloseDto } from './dtos/cash-close.dto';
 import { RosterService } from 'src/roster/roster.service';
 import { PlayerRoster } from 'src/roster/entities/player-roster.entity';
 import { TeamsService } from 'src/teams/teams.service';
@@ -61,6 +63,8 @@ export class FinanceService {
     private readonly allocationRepository: Repository<PaymentAllocation>,
     @InjectRepository(LedgerEntry)
     private readonly ledgerRepository: Repository<LedgerEntry>,
+    @InjectRepository(CashClosure)
+    private readonly cashClosureRepository: Repository<CashClosure>,
     private readonly rosterService: RosterService,
     private readonly teamsService: TeamsService,
     private readonly receiptStorage: PaymentReceiptStorage,
@@ -1853,5 +1857,109 @@ export class FinanceService {
         createdAt: e.createdAt,
       })),
     };
+  }
+
+  async closeCashRegister(
+    teamId: number,
+    dto: CashCloseDto,
+    actorId: number,
+    globalRole?: string,
+  ) {
+    await this.teamsService.assertCanManageTeamFinance(
+      actorId,
+      teamId,
+      globalRole,
+    );
+
+    const summary = await this.getTeamSummary(teamId);
+    const cashBalance = this.toNumber(summary.cashBalance);
+    const outstanding = this.toNumber(summary.totalOutstanding);
+    const carryPending = dto.carryPendingQuotas !== false;
+    const resetToZero = dto.resetCashToZero !== false;
+
+    if (resetToZero && Math.abs(cashBalance) > 0.01) {
+      if (cashBalance > 0) {
+        await this.ledgerRepository.save(
+          this.ledgerRepository.create({
+            teamId,
+            type: LedgerEntryType.EXPENSE,
+            category: LedgerCategory.CASH_ADJUSTMENT,
+            amount: cashBalance,
+            description:
+              dto.notes?.trim() ||
+              `Cierre de caja — ajuste a cero (saldo previo $${cashBalance.toFixed(2)})`,
+            createdBy: actorId,
+            referenceType: 'cash_closure',
+          }),
+        );
+      } else {
+        await this.ledgerRepository.save(
+          this.ledgerRepository.create({
+            teamId,
+            type: LedgerEntryType.INCOME,
+            category: LedgerCategory.CASH_ADJUSTMENT,
+            amount: Math.abs(cashBalance),
+            description:
+              dto.notes?.trim() ||
+              `Cierre de caja — ajuste a cero (saldo previo $${cashBalance.toFixed(2)})`,
+            createdBy: actorId,
+            referenceType: 'cash_closure',
+          }),
+        );
+      }
+    }
+
+    const closure = await this.cashClosureRepository.save(
+      this.cashClosureRepository.create({
+        teamId,
+        season: dto.season,
+        closedBy: actorId,
+        closedAt: new Date(),
+        previousCashBalance: cashBalance,
+        outstandingCarried: carryPending ? outstanding : 0,
+        carryPendingQuotas: carryPending,
+        resetCashToZero: resetToZero,
+        notes: dto.notes,
+      }),
+    );
+
+    const fresh = await this.getTeamSummary(teamId);
+    return {
+      closure,
+      previousCashBalance: cashBalance,
+      newCashBalance: this.toNumber(fresh.cashBalance),
+      outstandingCarried: carryPending ? outstanding : 0,
+      carryPendingQuotas: carryPending,
+      message: carryPending
+        ? `Caja cerrada. Cuotas pendientes ($${outstanding.toFixed(2)}) pasan como saldo a cobrar.`
+        : 'Caja cerrada. Las cuotas pendientes no se arrastran en el cierre.',
+    };
+  }
+
+  async resetCashToZero(
+    teamId: number,
+    actorId: number,
+    globalRole?: string,
+    notes?: string,
+  ) {
+    return this.closeCashRegister(
+      teamId,
+      {
+        carryPendingQuotas: true,
+        resetCashToZero: true,
+        notes: notes || 'Caja llevada a cero',
+      },
+      actorId,
+      globalRole,
+    );
+  }
+
+  async listCashClosures(teamId: number, limit = 20) {
+    return this.cashClosureRepository.find({
+      where: { teamId },
+      order: { closedAt: 'DESC' },
+      take: limit,
+      relations: ['closer'],
+    });
   }
 }

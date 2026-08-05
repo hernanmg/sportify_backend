@@ -33,6 +33,7 @@ import { GenerateMonthlyQuotaDto } from './dtos/generate-monthly-quota.dto';
 import { GenerateRecurringQuotaDto } from './dtos/generate-recurring-quota.dto';
 import { UpdateRecurringQuotaDto } from './dtos/update-recurring-quota.dto';
 import { UpdateFeeChargeDto } from './dtos/update-fee-charge.dto';
+import { CashCloseDto } from './dtos/cash-close.dto';
 import { OpenTrainingCollectionDto } from './dtos/open-training-collection.dto';
 import { CreateTrainingExpenseDto } from './dtos/create-training-expense.dto';
 
@@ -404,6 +405,52 @@ export class FinanceController {
       req.user.id,
       req.user.role,
       concept,
+    );
+  }
+
+  @Post('team/:teamId/cash-close')
+  @UseGuards(RolesGuard)
+  @Roles(...FINANCE_MANAGER_ROLES)
+  closeCashRegister(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Body() dto: CashCloseDto,
+    @Req() req: { user: { id: number; role?: string } },
+  ) {
+    return this.financeService.closeCashRegister(
+      teamId,
+      dto,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Post('team/:teamId/cash-zero')
+  @UseGuards(RolesGuard)
+  @Roles(...FINANCE_MANAGER_ROLES)
+  resetCashToZero(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Body() body: { notes?: string },
+    @Req() req: { user: { id: number; role?: string } },
+  ) {
+    return this.financeService.resetCashToZero(
+      teamId,
+      req.user.id,
+      req.user.role,
+      body?.notes,
+    );
+  }
+
+  @Get('team/:teamId/cash-closures')
+  @UseGuards(RolesGuard)
+  @Roles(...FINANCE_MANAGER_ROLES)
+  listCashClosures(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Query('limit') limit?: string,
+  ) {
+    const parsed = limit ? parseInt(limit, 10) : 20;
+    return this.financeService.listCashClosures(
+      teamId,
+      Number.isFinite(parsed) ? parsed : 20,
     );
   }
 

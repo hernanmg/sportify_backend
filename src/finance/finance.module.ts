@@ -6,6 +6,7 @@ import { FeeCharge } from './entities/fee-charge.entity';
 import { PlayerPayment } from './entities/player-payment.entity';
 import { PaymentAllocation } from './entities/payment-allocation.entity';
 import { LedgerEntry } from './entities/ledger-entry.entity';
+import { CashClosure } from './entities/cash-closure.entity';
 import { RosterModule } from 'src/roster/roster.module';
 import { TeamsModule } from 'src/teams/teams.module';
 import { PaymentReceiptStorage } from './payment-receipt.storage';
@@ -20,6 +21,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       PlayerPayment,
       PaymentAllocation,
       LedgerEntry,
+      CashClosure,
       SportEvent,
       EventParticipant,
     ]),

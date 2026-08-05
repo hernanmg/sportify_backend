@@ -37,6 +37,8 @@ export enum LedgerCategory {
   REGISTRATION = 'registration',
   EQUIPMENT = 'equipment',
   MATCH = 'match',
+  EVENT = 'event',
+  CASH_ADJUSTMENT = 'cash_adjustment',
   OTHER = 'other',
 }
 
