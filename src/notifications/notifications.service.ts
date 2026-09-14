@@ -150,6 +150,28 @@ export class NotificationsService {
     return await this.notificationRepository.save(notification);
   }
 
+  /** Elimina una notificación propia (admins pueden borrar cualquiera). */
+  async deleteNotification(
+    notificationId: number,
+    userId: number,
+    userRole?: string,
+  ): Promise<void> {
+    let notification: Notification | null;
+    if (userRole === 'super_admin' || userRole === 'manager') {
+      notification = await this.notificationRepository.findOne({
+        where: { id: notificationId },
+      });
+    } else {
+      notification = await this.notificationRepository.findOne({
+        where: { id: notificationId, userId },
+      });
+    }
+    if (!notification) {
+      throw new NotFoundException('Notificación no encontrada');
+    }
+    await this.notificationRepository.remove(notification);
+  }
+
   // Marcar todas como leídas
   async markAllAsRead(userId: number): Promise<void> {
     await this.notificationRepository.update(

@@ -6,6 +6,7 @@ import { Team } from './entities/teams.entity';
 import { TeamCategory } from './entities/team-category.entity';
 import { TeamMember } from './entities/team-member.entity';
 import { TeamInvite } from './entities/team-invite.entity';
+import { TeamSeasonPeriod } from './entities/team-season-period.entity';
 import { PlayerRoster } from '../roster/entities/player-roster.entity';
 import { Player } from '../players/entities/player.entity';
 import { User } from '../users/entities/user.entity';
@@ -43,6 +44,7 @@ import { Notification } from '../notifications/entities/notification.entity';
       TeamCategory,
       TeamMember,
       TeamInvite,
+      TeamSeasonPeriod,
       PlayerRoster,
       Player,
       User,

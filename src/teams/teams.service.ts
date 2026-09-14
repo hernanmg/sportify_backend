@@ -12,6 +12,7 @@ import { Team } from './entities/teams.entity';
 import { TeamCategory } from './entities/team-category.entity';
 import { TeamMember, TeamMemberRole } from './entities/team-member.entity';
 import { TeamInvite } from './entities/team-invite.entity';
+import { TeamSeasonPeriod } from './entities/team-season-period.entity';
 import { PlayerRoster } from '../roster/entities/player-roster.entity';
 import { Player } from '../players/entities/player.entity';
 import { User } from '../users/entities/user.entity';
@@ -57,6 +58,8 @@ export class TeamsService {
     private readonly teamMemberRepository: Repository<TeamMember>,
     @InjectRepository(TeamInvite)
     private readonly teamInviteRepository: Repository<TeamInvite>,
+    @InjectRepository(TeamSeasonPeriod)
+    private readonly teamSeasonPeriodRepository: Repository<TeamSeasonPeriod>,
     @InjectRepository(Player)
     private readonly playerRepository: Repository<Player>,
     @InjectRepository(User)
@@ -170,6 +173,53 @@ export class TeamsService {
       );
     }
     return this.update(teamId, { birthdayNotificationHour: hour });
+  }
+
+  async getSeasonPeriod(teamId: number, season: string) {
+    const period = await this.teamSeasonPeriodRepository.findOne({
+      where: { teamId, season },
+    });
+    return (
+      period ?? {
+        teamId,
+        season,
+        startDate: null,
+        endDate: null,
+      }
+    );
+  }
+
+  async upsertSeasonPeriod(
+    teamId: number,
+    season: string,
+    dto: { startDate?: string | null; endDate?: string | null },
+    actorId: number,
+    globalRole?: string,
+  ) {
+    await this.assertCanManageTeamSettings(actorId, teamId, globalRole);
+    const startDate = dto.startDate?.trim() || null;
+    const endDate = dto.endDate?.trim() || null;
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException(
+        'La fecha desde no puede ser posterior a hasta',
+      );
+    }
+
+    let period = await this.teamSeasonPeriodRepository.findOne({
+      where: { teamId, season },
+    });
+    if (!period) {
+      period = this.teamSeasonPeriodRepository.create({
+        teamId,
+        season,
+        startDate,
+        endDate,
+      });
+    } else {
+      period.startDate = startDate;
+      period.endDate = endDate;
+    }
+    return this.teamSeasonPeriodRepository.save(period);
   }
 
   async isTeamAdmin(userId: number, teamId: number): Promise<boolean> {

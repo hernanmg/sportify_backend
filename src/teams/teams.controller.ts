@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Patch,
+  Put,
   Param,
   Delete,
   Query,
@@ -145,6 +146,32 @@ export class TeamsController {
       req.user.id,
       req.user.role,
       body.birthdayNotificationHour,
+    );
+  }
+
+  @Get(':teamId/season-periods/:season')
+  @UseGuards(AuthGuard('jwt'))
+  getSeasonPeriod(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('season') season: string,
+  ) {
+    return this.teamsService.getSeasonPeriod(teamId, decodeURIComponent(season));
+  }
+
+  @Put(':teamId/season-periods/:season')
+  @UseGuards(AuthGuard('jwt'))
+  upsertSeasonPeriod(
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('season') season: string,
+    @Body() body: { startDate?: string | null; endDate?: string | null },
+    @Request() req: { user: { id: number; role?: string } },
+  ) {
+    return this.teamsService.upsertSeasonPeriod(
+      teamId,
+      decodeURIComponent(season),
+      body,
+      req.user.id,
+      req.user.role,
     );
   }
 

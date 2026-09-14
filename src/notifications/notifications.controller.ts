@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Query,
+  Delete,
   UseGuards,
   Request,
   HttpCode,
@@ -70,6 +71,17 @@ export class NotificationsController {
   @HttpCode(HttpStatus.OK)
   async markAsRead(@Param('id') id: number, @Request() req) {
     return await this.notificationsService.markAsRead(id, req.user.id, req.user.role);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  async deleteNotification(@Param('id') id: number, @Request() req) {
+    await this.notificationsService.deleteNotification(
+      id,
+      req.user.id,
+      req.user.role,
+    );
+    return { message: 'Notificación eliminada' };
   }
 
   @Patch('mark-all-read')
