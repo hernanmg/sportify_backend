@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Not } from 'typeorm';
 import { FeeCharge } from './entities/fee-charge.entity';
 import { PlayerPayment } from './entities/player-payment.entity';
 import { PaymentAllocation } from './entities/payment-allocation.entity';
@@ -223,6 +223,7 @@ export class FinanceService {
 
     const byConcept = new Map<string, FeeCharge>();
     for (const charge of charges) {
+      if (charge.status === FeeChargeStatus.WAIVED) continue;
       if (!byConcept.has(charge.concept)) {
         byConcept.set(charge.concept, charge);
       }
@@ -270,12 +271,23 @@ export class FinanceService {
       seenUserIds.add(userId);
 
       for (const template of templates) {
+        // No regenerar cuotas anuladas/eliminadas a propósito para ese jugador.
+        const intentionallyRemoved = existingCharges.some(
+          (charge) =>
+            charge.userId === userId &&
+            charge.concept === template.concept &&
+            (charge.season ?? null) === (template.season ?? null) &&
+            charge.status === FeeChargeStatus.WAIVED,
+        );
+        if (intentionallyRemoved) continue;
+
         const alreadyExists = existingCharges.some(
           (charge) =>
             charge.userId === userId &&
             charge.concept === template.concept &&
-            charge.season === template.season &&
-            this.toNumber(charge.amount) === this.toNumber(template.amount),
+            (charge.season ?? null) === (template.season ?? null) &&
+            this.toNumber(charge.amount) === this.toNumber(template.amount) &&
+            charge.status !== FeeChargeStatus.WAIVED,
         );
         if (alreadyExists) continue;
 
@@ -866,13 +878,17 @@ export class FinanceService {
     const totalCharged = charges.reduce(
       (sum, c) =>
         sum +
-        (this.isFutureMonthlyQuota(c) ? 0 : this.toNumber(c.amount)),
+        (c.status === FeeChargeStatus.WAIVED || this.isFutureMonthlyQuota(c)
+          ? 0
+          : this.toNumber(c.amount)),
       0,
     );
     const totalPaidOnCharges = charges.reduce(
       (sum, c) =>
         sum +
-        (this.isFutureMonthlyQuota(c) ? 0 : this.toNumber(c.paidAmount)),
+        (c.status === FeeChargeStatus.WAIVED || this.isFutureMonthlyQuota(c)
+          ? 0
+          : this.toNumber(c.paidAmount)),
       0,
     );
     const balance = charges.reduce(
@@ -947,7 +963,9 @@ export class FinanceService {
         globalRole,
       );
     }
-    await this.syncMissingFeeCharges(teamId, season);
+    // No auto-sincronizar acá: regeneraba cuotas borradas a propósito
+    // (p. ej. "Cuota Julio" de un jugador) usando las de otros del plantel.
+    // Para alta de jugadores nuevos usar POST .../fees/sync-roster.
     await this.promoteScheduledCharges(teamId);
 
     let { roster } = await this.findRosterForFinance(teamId, season);
@@ -965,6 +983,7 @@ export class FinanceService {
     >();
 
     for (const charge of charges) {
+      if (charge.status === FeeChargeStatus.WAIVED) continue;
       if (this.isFutureMonthlyQuota(charge)) continue;
       const existing = totalsByUser.get(charge.userId) ?? {
         totalCharged: 0,
@@ -1043,7 +1062,12 @@ export class FinanceService {
 
   async getTeamCharges(teamId: number, status?: FeeChargeStatus) {
     const where: Record<string, unknown> = { teamId };
-    if (status) where.status = status;
+    if (status) {
+      where.status = status;
+    } else {
+      // Por defecto ocultar anuladas (eliminación lógica).
+      where.status = Not(FeeChargeStatus.WAIVED);
+    }
 
     return this.feeChargeRepository.find({
       where,
@@ -1361,9 +1385,21 @@ export class FinanceService {
       );
     }
 
+    // Anulación lógica: evita que sync-roster / plantillas regeneren la misma cuota.
+    if (charge.type === FeeChargeType.MONTHLY_QUOTA) {
+      charge.status = FeeChargeStatus.WAIVED;
+      await this.feeChargeRepository.save(charge);
+      return {
+        deleted: true,
+        soft: true,
+        id: chargeId,
+        message: 'Cuota eliminada. No se regenerará automáticamente.',
+      };
+    }
+
     await this.allocationRepository.delete({ feeChargeId: chargeId });
     await this.feeChargeRepository.delete(chargeId);
-    return { deleted: true, id: chargeId };
+    return { deleted: true, soft: false, id: chargeId };
   }
 
   async deleteRecurringQuotaSeries(
