@@ -50,6 +50,8 @@ export class TeamReportsService {
       ? debts.filter((d) => userIds.includes(d.userId))
       : debts;
 
+    const finance = await this.financeService.getTeamSummary(teamId);
+
     return {
       teamId,
       season: season ?? null,
@@ -68,6 +70,19 @@ export class TeamReportsService {
         teamId,
         userIds,
       ),
+      finance: {
+        cashBalance: finance.cashBalance,
+        totalIncome: finance.totalIncome,
+        totalExpenses: finance.totalExpenses,
+        teamIncome: finance.teamIncome,
+        teamExpenses: finance.teamExpenses,
+        teamBalance: finance.teamBalance,
+        eventIncome: finance.eventIncome,
+        eventExpenses: finance.eventExpenses,
+        eventBalance: finance.eventBalance,
+        totalOutstanding: finance.totalOutstanding,
+        pendingPaymentsCount: finance.pendingPaymentsCount,
+      },
     };
   }
 

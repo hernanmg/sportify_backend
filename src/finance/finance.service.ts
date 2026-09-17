@@ -22,6 +22,11 @@ import {
   PaymentMethod,
   PaymentStatus,
 } from './finance.enums';
+import {
+  isEventRelatedLedgerEntry,
+  LedgerScope,
+  matchesLedgerScope,
+} from './ledger-scope.util';
 import { CreateFeeBatchDto } from './dtos/create-fee-batch.dto';
 import { RegisterPaymentDto } from './dtos/register-payment.dto';
 import { CreateTeamExpenseDto } from './dtos/create-team-expense.dto';
@@ -917,13 +922,25 @@ export class FinanceService {
   async getTeamSummary(teamId: number) {
     const ledger = await this.ledgerRepository.find({ where: { teamId } });
 
-    const income = ledger
-      .filter((e) => e.type === LedgerEntryType.INCOME)
-      .reduce((sum, e) => sum + this.toNumber(e.amount), 0);
+    const sumBy = (
+      entries: typeof ledger,
+      type: LedgerEntryType,
+      eventRelated: boolean | null,
+    ) =>
+      entries
+        .filter((e) => {
+          if (e.type !== type) return false;
+          if (eventRelated === null) return true;
+          return isEventRelatedLedgerEntry(e) === eventRelated;
+        })
+        .reduce((sum, e) => sum + this.toNumber(e.amount), 0);
 
-    const expenses = ledger
-      .filter((e) => e.type === LedgerEntryType.EXPENSE)
-      .reduce((sum, e) => sum + this.toNumber(e.amount), 0);
+    const income = sumBy(ledger, LedgerEntryType.INCOME, null);
+    const expenses = sumBy(ledger, LedgerEntryType.EXPENSE, null);
+    const teamIncome = sumBy(ledger, LedgerEntryType.INCOME, false);
+    const teamExpenses = sumBy(ledger, LedgerEntryType.EXPENSE, false);
+    const eventIncome = sumBy(ledger, LedgerEntryType.INCOME, true);
+    const eventExpenses = sumBy(ledger, LedgerEntryType.EXPENSE, true);
 
     const charges = await this.feeChargeRepository.find({ where: { teamId } });
     const totalOutstanding = charges.reduce(
@@ -943,6 +960,12 @@ export class FinanceService {
       cashBalance: income - expenses,
       totalIncome: income,
       totalExpenses: expenses,
+      teamIncome,
+      teamExpenses,
+      teamBalance: teamIncome - teamExpenses,
+      eventIncome,
+      eventExpenses,
+      eventBalance: eventIncome - eventExpenses,
       totalOutstanding,
       chargesCount: charges.length,
       pendingPaymentsCount,
@@ -1051,13 +1074,29 @@ export class FinanceService {
     return results.sort((a, b) => b.balance - a.balance);
   }
 
-  async getTeamLedger(teamId: number, limit = 50) {
-    return this.ledgerRepository.find({
+  async getTeamLedger(
+    teamId: number,
+    limit = 50,
+    scope: LedgerScope = 'all',
+  ) {
+    const rows = await this.ledgerRepository.find({
       where: { teamId },
       relations: ['user'],
       order: { createdAt: 'DESC' },
-      take: limit,
+      take: Math.max(limit * 3, 150),
     });
+
+    return rows
+      .filter((e) => matchesLedgerScope(e, scope))
+      .slice(0, limit)
+      .map((e) => {
+        const isEventRelated = isEventRelatedLedgerEntry(e);
+        return {
+          ...e,
+          isEventRelated,
+          scope: isEventRelated ? 'event' : 'team',
+        };
+      });
   }
 
   async getTeamCharges(teamId: number, status?: FeeChargeStatus) {

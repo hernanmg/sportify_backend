@@ -33,14 +33,25 @@ export class TeamDashboardService {
     teamId: number,
     globalRole?: string,
   ): Promise<void> {
-    const elevated = ['super_admin', 'manager', 'admin', 'team_captain', 'dt'];
+    const elevated = [
+      'super_admin',
+      'manager',
+      'admin',
+      'team_captain',
+      'dt',
+      'tesorero',
+      'delegado',
+    ];
     if (globalRole && elevated.includes(globalRole)) {
-      if (['super_admin', 'manager'].includes(globalRole)) return;
+      if (['super_admin', 'manager', 'admin'].includes(globalRole)) return;
       const isMember = await this.teamsService.isTeamMember(userId, teamId);
       if (isMember) return;
     }
+    if (await this.teamsService.canManageTeamFinance(userId, teamId, globalRole)) {
+      return;
+    }
     throw new ForbiddenException(
-      'Solo el cuerpo técnico puede ver el panel del equipo',
+      'Solo el cuerpo técnico o tesorería pueden ver el panel del equipo',
     );
   }
 

@@ -36,7 +36,9 @@ import { UpdateFeeChargeDto } from './dtos/update-fee-charge.dto';
 import { CashCloseDto } from './dtos/cash-close.dto';
 import { OpenTrainingCollectionDto } from './dtos/open-training-collection.dto';
 import { CreateTrainingExpenseDto } from './dtos/create-training-expense.dto';
+import { parseLedgerScope } from './ledger-scope.util';
 
+/** Roles globales con gestión financiera (no incluye team_captain). */
 const FINANCE_MANAGER_ROLES = [
   'super_admin',
   'manager',
@@ -107,9 +109,14 @@ export class FinanceController {
   getTeamLedger(
     @Param('teamId', ParseIntPipe) teamId: number,
     @Query('limit') limit?: string,
+    @Query('scope') scope?: string,
   ) {
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
-    return this.financeService.getTeamLedger(teamId, parsedLimit);
+    return this.financeService.getTeamLedger(
+      teamId,
+      parsedLimit,
+      parseLedgerScope(scope),
+    );
   }
 
   @Get('team/:teamId/charges')
