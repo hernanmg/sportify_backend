@@ -6,6 +6,7 @@ import { UpdateProfileDto } from './dtos/update-profile.dto';
 import { ChangePasswordDto } from './dtos/change-password.dto';
 import { UserRole } from 'src/users-roles/entities/userRole.entity';
 import { Role } from 'src/roles/entities/role.entity';
+import { DeviceToken } from 'src/devices/entities/device-token.entity';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -93,6 +94,57 @@ export class UsersService {
     await this.userRepository.update(id, {
       deletedAt: new Date(),
       isActive: false,
+    });
+  }
+
+  /**
+   * Autoeliminación (requisito App Store 5.1.1(v)): soft delete + anonimización de PII
+   * para liberar email/username y que no queden datos personales.
+   * Se conservan registros históricos del equipo (pagos, asistencias) ligados al id.
+   */
+  async deleteOwnAccount(userId: number, password?: string): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+      select: ['id', 'passwordHash'],
+    });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+    if (user.passwordHash) {
+      if (!password) {
+        throw new BadRequestException('Ingresá tu contraseña para confirmar');
+      }
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        throw new UnauthorizedException('La contraseña es incorrecta');
+      }
+    }
+
+    const suffix = `${userId}_${Date.now()}`;
+    await this.userRepository.manager.transaction(async (em) => {
+      await em.update(User, userId, {
+        username: `deleted_${suffix}`.slice(0, 50),
+        email: `deleted_${suffix}@deleted.invalid`,
+        passwordHash: null,
+        firstName: null,
+        lastName: null,
+        phone: null,
+        fechaNacimiento: null,
+        avatarUrl: null,
+        ciudad: null,
+        provincia: null,
+        pais: null,
+        bio: null,
+        experienciaDeportiva: null,
+        fichaOrigen: null,
+        googleId: null,
+        facebookId: null,
+        emailVerified: false,
+        phoneVerified: false,
+        isActive: false,
+        deletedAt: new Date(),
+      });
+      await em.delete(DeviceToken, { userId });
     });
   }
 

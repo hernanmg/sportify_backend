@@ -40,8 +40,19 @@ export class UsersController {
   }
 
   @Post()
-  async create(@Body() data: Partial<User>): Promise<User> {
-    return this.userService.create(data);
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('super_admin', 'manager')
+  async create(@Body() data: Partial<User>) {
+    const { passwordHash, ...user } = await this.userService.create(data);
+    return user;
+  }
+
+  @Delete('me')
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(HttpStatus.OK)
+  async deleteOwnAccount(@Req() req, @Body() body: { password?: string }) {
+    await this.userService.deleteOwnAccount(req.user.id, body?.password);
+    return { message: 'Cuenta eliminada' };
   }
 
   @Get('profile')
@@ -107,11 +118,19 @@ export class UsersController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: number): Promise<User> {
-    return this.userService.findOne(id);
+  @UseGuards(AuthGuard('jwt'))
+  async findOne(@Param('id') id: number) {
+    const user = await this.userService.findOne(id);
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+    const { passwordHash, ...rest } = user;
+    return rest;
   }
 
   @Put(':id')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('super_admin', 'manager')
   async update(
     @Param('id') id: number,
     @Body() data: Partial<User>,
@@ -120,6 +139,8 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('super_admin', 'manager')
   async delete(@Param('id') id: number): Promise<void> {
     return this.userService.delete(id);
   }
