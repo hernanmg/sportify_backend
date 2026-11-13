@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
@@ -45,7 +45,7 @@ function getTemplatesPath(): string {
         logger: false
       },
       defaults: {
-        from: `"Sportify Amateur" <${process.env.SMTP_FROM || 'noreply@sportify.com'}>`,
+        from: `"KeepSync Sports" <${process.env.SMTP_FROM || 'noreply@keepsync.sports'}>`,
       },
       template: {
         dir: getTemplatesPath(),

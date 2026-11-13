@@ -219,7 +219,7 @@ export class PushService {
         android: {
           priority: 'high',
           notification: {
-            channelId: 'sportify_alerts',
+            channelId: 'keepsync_alerts',
             sound: 'default',
           },
         },

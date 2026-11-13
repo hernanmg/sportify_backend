@@ -1,4 +1,4 @@
-# 🐘 Setup de Base de Datos PostgreSQL
+﻿# 🐘 Setup de Base de Datos PostgreSQL
 
 Este proyecto utiliza PostgreSQL con Docker para el desarrollo local.
 
@@ -65,14 +65,14 @@ npm run start:dev
 ### Acceder a pgAdmin
 
 1. Abrir: http://localhost:8080
-2. Email: `admin@sportify.com`
+2. Email: `admin@keepsync.sports`
 3. Password: `admin123`
 
 ### Configurar conexión en pgAdmin
 
 1. Clic derecho en "Servers" → "Register" → "Server"
 2. **General tab:**
-   - Name: `Sportify Amateur Local`
+   - Name: `KeepSync Sports Local`
 3. **Connection tab:**
    - Host: `postgres` (nombre del servicio Docker)
    - Port: `5432`

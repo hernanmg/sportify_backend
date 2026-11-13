@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
 import { NotificationType } from '../notifications/entities/notification.entity';
 import * as nodemailer from 'nodemailer';
@@ -74,7 +74,7 @@ export class EmailService {
     const htmlContent = this.generateSimpleHTML(emailData);
     
     await this.directTransporter.sendMail({
-      from: process.env.SMTP_FROM || 'noreply@sportify.com',
+      from: process.env.SMTP_FROM || 'noreply@keepsync.sports',
       to: emailData.to,
       subject: emailData.subject,
       html: htmlContent,
@@ -109,7 +109,7 @@ export class EmailService {
           </ul>
           <p><strong>¡Te esperamos para seguir mejorando juntos! 💪</strong></p>
 
-          <p>Este email fue enviado automáticamente por Sportify Amateur</p>
+          <p>Este email fue enviado automáticamente por KeepSync Sports</p>
           <p>Si tienes alguna consulta, contacta a tu director técnico</p>
         `;
       case 'match-invitation':
@@ -125,7 +125,7 @@ export class EmailService {
         `;
       default:
         return `
-          <h2>📧 Notificación de Sportify Amateur</h2>
+          <h2>📧 Notificación de KeepSync Sports</h2>
           <p><strong>Asunto:</strong> ${emailData.subject}</p>
           <p>Tienes una nueva notificación en la aplicación.</p>
         `;

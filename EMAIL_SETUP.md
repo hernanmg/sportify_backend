@@ -1,4 +1,4 @@
-# 📧 Configuración de Email para Sportify Amateur
+﻿# 📧 Configuración de Email para KeepSync Sports
 
 ## 🚨 Error Actual
 ```
@@ -15,7 +15,7 @@ Este error indica que Gmail rechaza las credenciales. **NO uses tu contraseña n
 2. **Seguridad** → **Verificación en 2 pasos** (debe estar activada)
 3. **Contraseñas de aplicación** → **Generar nueva**
 4. Selecciona **"Correo"** y **"Otro (nombre personalizado)"**
-5. Escribe **"Sportify Amateur"**
+5. Escribe **"KeepSync Sports"**
 6. **Copia la contraseña de 16 caracteres** (formato: abcd-efgh-ijkl-mnop)
 
 ### 2️⃣ Configurar Variables de Entorno
@@ -28,7 +28,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=tu-email@gmail.com
 SMTP_PASS=abcd-efgh-ijkl-mnop  # ← Contraseña de aplicación (16 caracteres)
-SMTP_FROM=noreply@sportify.com
+SMTP_FROM=noreply@keepsync.sports
 ```
 
 ### 3️⃣ Proveedores Alternativos
