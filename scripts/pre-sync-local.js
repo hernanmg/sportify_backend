@@ -31,6 +31,16 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('pre-sync falló:', err.message);
+  const detail =
+    err.message ||
+    err.code ||
+    (err.errors && err.errors.map((e) => e.code || e.message).join(', ')) ||
+    String(err);
+  console.error('pre-sync falló:', detail);
+  if (err.code === 'ECONNREFUSED' || detail.includes('ECONNREFUSED')) {
+    console.error(
+      '→ PostgreSQL no responde. Abrí Docker Desktop y corré: docker compose up -d postgres',
+    );
+  }
   process.exit(1);
 });
